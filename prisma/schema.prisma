@@ -1,0 +1,162 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  clerkId       String   @unique
+  email         String   @unique
+  name          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Brand settings
+  brandVoice    String?  // JSON: tone, style preferences
+  brandColors   String?  // JSON: color palette
+  visualStyle   String?  // JSON: visual preferences
+
+  // Relations
+  integrations  Integration[]
+  activities    Activity[]
+  insights      Insight[]
+  contentDrafts ContentDraft[]
+  schedules     Schedule[]
+}
+
+model Integration {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // "github", "linkedin", "twitter", etc.
+  provider    String   // "github", "linkedin", etc.
+  accessToken String?  @db.Text
+  refreshToken String? @db.Text
+  config      String?  @db.Text // JSON config
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // "github_commit", "github_pr", "feedback", "manual"
+  source      String   // "github", "manual", "upload"
+  title       String
+  description String?  @db.Text
+  metadata    String?  @db.Text // JSON: commit hash, PR number, etc.
+  rawData     String?  @db.Text // Full raw data
+  processed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  insights Insight[]
+
+  @@index([userId, processed])
+  @@index([createdAt])
+}
+
+model Insight {
+  id          String   @id @default(cuid())
+  userId      String
+  activityId  String?
+  coreProblem String   @db.Text
+  solution    String   @db.Text
+  audience    String   @db.Text
+  whyMatters  String   @db.Text
+  impact      String?  @db.Text
+  themes      String?  @db.Text // JSON array
+  status      String   @default("draft") // "draft", "approved", "rejected"
+  approvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity     Activity?     @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  contentDrafts ContentDraft[]
+
+  @@index([userId, status])
+}
+
+model ContentDraft {
+  id          String   @id @default(cuid())
+  userId      String
+  insightId   String
+  type        String   // "post", "blog", "carousel", "thread", "caption"
+  platform    String?  // "linkedin", "twitter", "instagram", "blog"
+  title       String?
+  content     String   @db.Text
+  visualPrompt String? @db.Text
+  visualUrl   String?
+  cta         String?
+  status      String   @default("draft") // "draft", "approved", "scheduled", "published", "rejected"
+  edits       String?  @db.Text // JSON: edit history
+  version     Int      @default(1)
+  scheduledAt DateTime?
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  insight Insight @relation(fields: [insightId], references: [id], onDelete: Cascade)
+  schedules Schedule[]
+
+  @@index([userId, status])
+  @@index([insightId])
+}
+
+model Schedule {
+  id            String   @id @default(cuid())
+  userId        String
+  contentDraftId String
+  platform      String
+  scheduledAt   DateTime
+  publishedAt   DateTime?
+  status        String   @default("pending") // "pending", "published", "failed"
+  errorMessage  String?  @db.Text
+  externalId    String?  // Platform-specific post ID
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentDraft ContentDraft @relation(fields: [contentDraftId], references: [id], onDelete: Cascade)
+  analytics    Analytics[]
+
+  @@index([userId, status])
+  @@index([scheduledAt])
+  @@index([externalId])
+}
+
+model Analytics {
+  id          String   @id @default(cuid())
+  scheduleId  String
+  platform    String
+  views       Int      @default(0)
+  likes       Int      @default(0)
+  comments    Int      @default(0)
+  shares      Int      @default(0)
+  clicks      Int      @default(0)
+  impressions Int     @default(0)
+  engagement  Float    @default(0) // Calculated engagement rate
+  metadata    String?  @db.Text // JSON: additional platform-specific metrics
+  recordedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@index([scheduleId])
+  @@index([recordedAt])
+}
