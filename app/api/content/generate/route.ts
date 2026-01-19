@@ -32,12 +32,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Insight not found" }, { status: 404 })
     }
 
-    // Get user brand voice
+    // Get user brand voice and tier
     const user = await db.user.findFirst({
       where: { clerkId: userId },
     })
 
     const brandVoice = user?.brandVoice ? JSON.parse(user.brandVoice).tone : undefined
+    const userTier = (user?.tier === "premium" ? "premium" : "standard") as "standard" | "premium"
 
     // Generate content
     const contentData = await generateContent(
@@ -51,7 +52,8 @@ export async function POST(req: Request) {
       },
       type as "post" | "blog" | "carousel" | "thread" | "caption",
       platform as "linkedin" | "twitter" | "instagram" | "blog" | undefined,
-      brandVoice
+      brandVoice,
+      userTier
     )
 
     // Save draft

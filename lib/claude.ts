@@ -25,6 +25,36 @@ export interface ContentDraft {
 }
 
 /**
+ * Determines which Claude model to use based on user tier
+ * Premium tier uses Opus 4.5, Standard tier uses Sonnet 4.5
+ */
+function getModelForTier(userTier: "standard" | "premium" = "standard"): string {
+  return userTier === "premium" 
+    ? "claude-3-5-opus-20241022"
+    : "claude-3-5-sonnet-20241022"
+}
+
+/**
+ * Determines which Claude model to use based on content type and user tier
+ * Blog content always uses Opus 4.5 for maximum quality
+ * Premium tier uses Opus 4.5, Standard tier uses Sonnet 4.5 for other content
+ */
+function getModelForContent(
+  contentType: "post" | "blog" | "carousel" | "thread" | "caption",
+  userTier: "standard" | "premium" = "standard"
+): string {
+  // Blog content always uses Opus for maximum quality
+  if (contentType === "blog") {
+    return "claude-3-5-opus-20241022"
+  }
+  
+  // Premium tier uses Opus, standard tier uses Sonnet
+  return userTier === "premium"
+    ? "claude-3-5-opus-20241022"
+    : "claude-3-5-sonnet-20241022"
+}
+
+/**
  * Core Insight Agent - Extracts structured insights from activity data
  */
 export async function extractInsight(
@@ -38,7 +68,8 @@ export async function extractInsight(
       whyMatters?: string
     }
   },
-  brandVoice?: string
+  brandVoice?: string,
+  userTier: "standard" | "premium" = "standard"
 ): Promise<InsightExtraction> {
   const systemPrompt = `You are a Core Insight Agent for Founder OS. Your job is to extract meaningful, honest insights from real product activity.
 
@@ -73,8 +104,10 @@ ${brandVoice ? `Brand voice preferences: ${brandVoice}` : ""}
 
 Extract the core insight in JSON format.`
 
+  const model = getModelForTier(userTier)
+  
   const message = await anthropic.messages.create({
-    model: "claude-3-5-sonnet-20241022",
+    model,
     max_tokens: 2000,
     system: systemPrompt,
     messages: [
@@ -107,7 +140,8 @@ export async function generateContent(
   insight: InsightExtraction,
   type: "post" | "blog" | "carousel" | "thread" | "caption",
   platform?: "linkedin" | "twitter" | "instagram" | "blog",
-  brandVoice?: string
+  brandVoice?: string,
+  userTier: "standard" | "premium" = "standard"
 ): Promise<ContentDraft> {
   const systemPrompt = `You are a Content Translation Agent for Founder OS. Your job is to create authentic, founder-style content from insights.
 
@@ -155,8 +189,10 @@ ${brandVoice ? `Brand voice: ${brandVoice}` : ""}
 
 Generate the content in JSON format.`
 
+  const model = getModelForContent(type, userTier)
+  
   const message = await anthropic.messages.create({
-    model: "claude-3-5-sonnet-20241022",
+    model,
     max_tokens: 4000,
     system: systemPrompt,
     messages: [

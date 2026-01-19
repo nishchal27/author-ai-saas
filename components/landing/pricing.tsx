@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Check } from "lucide-react"
-import { SignUpButton } from "@clerk/nextjs"
+import Link from "next/link"
 
 const plans = [
   {
@@ -113,18 +113,17 @@ export function Pricing() {
                     </li>
                   ))}
                 </ul>
-                <SignUpButton mode="modal">
-                  <Button
-                    className={`w-full ${
-                      plan.popular
-                        ? "bg-gradient-to-r from-primary to-accent hover:opacity-90"
-                        : ""
-                    }`}
-                    variant={plan.popular ? "default" : "outline"}
-                  >
-                    Start Free Trial
-                  </Button>
-                </SignUpButton>
+                <Button
+                  asChild
+                  className={`w-full ${
+                    plan.popular
+                      ? "bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                      : ""
+                  }`}
+                  variant={plan.popular ? "default" : "outline"}
+                >
+                  <Link href="/sign-up">Start Free Trial</Link>
+                </Button>
               </CardContent>
             </Card>
           ))}

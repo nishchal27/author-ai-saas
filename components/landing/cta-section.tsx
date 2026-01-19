@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Sparkles } from "lucide-react"
-import { SignUpButton } from "@clerk/nextjs"
+import Link from "next/link"
 
 export function CTASection() {
   return (
@@ -34,22 +34,24 @@ export function CTASection() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-scale-in">
-            <SignUpButton mode="modal">
-              <Button
-                size="lg"
-                variant="secondary"
-                className="group bg-white text-primary hover:bg-white/90"
-              >
+            <Button
+              size="lg"
+              variant="secondary"
+              asChild
+              className="group bg-white text-primary hover:bg-white/90"
+            >
+              <Link href="/sign-up">
                 Start Free Trial
                 <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </SignUpButton>
+              </Link>
+            </Button>
             <Button
               size="lg"
               variant="outline"
+              asChild
               className="border-white/30 text-white hover:bg-white/10 hover:border-white/50"
             >
-              Schedule a Demo
+              <Link href="/sign-in">Sign In</Link>
             </Button>
           </div>
 

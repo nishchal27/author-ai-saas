@@ -43,7 +43,7 @@ export async function PATCH(req: Request) {
     }
 
     const body = await req.json()
-    const { brandVoice, brandColors, visualStyle } = body
+    const { brandVoice, brandColors, visualStyle, tier } = body
 
     const updated = await db.user.update({
       where: { id: user.id },
@@ -51,6 +51,7 @@ export async function PATCH(req: Request) {
         ...(brandVoice !== undefined ? { brandVoice } : {}),
         ...(brandColors !== undefined ? { brandColors } : {}),
         ...(visualStyle !== undefined ? { visualStyle } : {}),
+        ...(tier !== undefined ? { tier } : {}),
       },
     })
 
