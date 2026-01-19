@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { useMutation, useQuery } from "@tanstack/react-query"
-import { Loader2, Github, RefreshCw, HelpCircle } from "lucide-react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Loader2, Github, RefreshCw, HelpCircle, Crown, Sparkles } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -69,6 +69,7 @@ async function connectTwitter(data: { accessToken: string; refreshToken?: string
 }
 
 export default function SettingsPage() {
+  const queryClient = useQueryClient()
   const { data: settingsData } = useQuery({
     queryKey: ["settings"],
     queryFn: fetchSettings,
@@ -81,6 +82,7 @@ export default function SettingsPage() {
   const [linkedinToken, setLinkedinToken] = useState("")
   const [twitterToken, setTwitterToken] = useState("")
   const [selectedRepo, setSelectedRepo] = useState("")
+  const [userTier, setUserTier] = useState<"standard" | "premium">("standard")
 
   useEffect(() => {
     if (settingsData?.user?.brandVoice) {
@@ -90,6 +92,10 @@ export default function SettingsPage() {
       } catch {
         setBrandVoice(settingsData.user.brandVoice)
       }
+    }
+    // Load user tier
+    if (settingsData?.user?.tier) {
+      setUserTier(settingsData.user.tier as "standard" | "premium")
     }
     // Load GitHub config if exists
     if (settingsData?.user?.integrations) {
@@ -105,10 +111,14 @@ export default function SettingsPage() {
 
   const settingsMutation = useMutation({
     mutationFn: updateSettings,
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["settings"] })
+      const message = variables.tier
+        ? `Your tier has been updated to ${variables.tier}.`
+        : "Your brand voice has been updated."
       toast({
         title: "Settings saved",
-        description: "Your brand voice has been updated.",
+        description: message,
         variant: "success",
       })
     },
@@ -203,6 +213,11 @@ export default function SettingsPage() {
     })
   }
 
+  const handleUpdateTier = (tier: "standard" | "premium") => {
+    setUserTier(tier)
+    settingsMutation.mutate({ tier })
+  }
+
   const handleConnectGitHub = (e: React.FormEvent) => {
     e.preventDefault()
     githubMutation.mutate({
@@ -247,6 +262,79 @@ export default function SettingsPage() {
           Configure your brand voice and integrations
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Crown className="h-5 w-5 text-primary" />
+            Subscription Tier
+          </CardTitle>
+          <CardDescription>
+            Choose your tier. Premium tier uses Claude Opus 4.5 for maximum quality content generation.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div
+              className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                userTier === "standard"
+                  ? "border-primary bg-primary/5"
+                  : "border-gray-200 hover:border-gray-300"
+              }`}
+              onClick={() => handleUpdateTier("standard")}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold">Standard</h3>
+                {userTier === "standard" && (
+                  <div className="h-2 w-2 rounded-full bg-primary" />
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Uses Claude Sonnet 4.5
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• High-quality content generation</li>
+                <li>• Blog posts use Opus 4.5</li>
+                <li>• Cost-effective for most use cases</li>
+              </ul>
+            </div>
+            <div
+              className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                userTier === "premium"
+                  ? "border-primary bg-primary/5"
+                  : "border-gray-200 hover:border-gray-300"
+              }`}
+              onClick={() => handleUpdateTier("premium")}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Crown className="h-4 w-4 text-primary" />
+                  Premium
+                </h3>
+                {userTier === "premium" && (
+                  <div className="h-2 w-2 rounded-full bg-primary" />
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Uses Claude Opus 4.5
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• Maximum quality content</li>
+                <li>• Best for validation & testing</li>
+                <li>• All content types use Opus</li>
+              </ul>
+            </div>
+          </div>
+          {userTier === "premium" && (
+            <div className="mt-4 p-3 bg-primary/10 border border-primary/20 rounded-md">
+              <p className="text-sm text-primary flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                You're on Premium tier. All content will use Claude Opus 4.5 for maximum quality.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -15,6 +15,7 @@ model User {
   clerkId       String   @unique
   email         String   @unique
   name          String?
+  tier          String   @default("standard") // "standard" | "premium"
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

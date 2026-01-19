@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Menu, X, Sparkles } from "lucide-react"
-import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs"
+import { UserButton, useUser } from "@clerk/nextjs"
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
@@ -69,14 +69,12 @@ export function Navbar() {
               </div>
             ) : (
               <div className="flex items-center space-x-3">
-                <SignInButton mode="modal">
-                  <Button variant="ghost" size="sm">
-                    Sign In
-                  </Button>
-                </SignInButton>
-                <SignUpButton mode="modal">
-                  <Button size="sm">Get Started</Button>
-                </SignUpButton>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/sign-in">Sign In</Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link href="/sign-up">Get Started</Link>
+                </Button>
               </div>
             )}
           </div>
@@ -130,16 +128,12 @@ export function Navbar() {
                 </>
               ) : (
                 <>
-                  <SignInButton mode="modal">
-                    <Button variant="outline" className="w-full" size="sm">
-                      Sign In
-                    </Button>
-                  </SignInButton>
-                  <SignUpButton mode="modal">
-                    <Button className="w-full" size="sm">
-                      Get Started
-                    </Button>
-                  </SignUpButton>
+                  <Button asChild variant="outline" className="w-full" size="sm">
+                    <Link href="/sign-in">Sign In</Link>
+                  </Button>
+                  <Button asChild className="w-full" size="sm">
+                    <Link href="/sign-up">Get Started</Link>
+                  </Button>
                 </>
               )}
             </div>

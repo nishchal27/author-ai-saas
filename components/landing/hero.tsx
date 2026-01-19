@@ -3,7 +3,6 @@
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Sparkles, TrendingUp, Zap } from "lucide-react"
 import Link from "next/link"
-import { SignUpButton } from "@clerk/nextjs"
 
 export function Hero() {
   return (
@@ -40,19 +39,19 @@ export function Hero() {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 animate-scale-in">
-            <SignUpButton mode="modal">
-              <Button size="lg" className="group w-full sm:w-auto">
+            <Button size="lg" asChild className="group w-full sm:w-auto">
+              <Link href="/sign-up">
                 Get Started Free
                 <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </SignUpButton>
+              </Link>
+            </Button>
             <Button
               variant="outline"
               size="lg"
               asChild
               className="w-full sm:w-auto"
             >
-              <Link href="#how-it-works">See How It Works</Link>
+              <Link href="/sign-in">Sign In</Link>
             </Button>
           </div>
 

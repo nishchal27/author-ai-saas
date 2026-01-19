@@ -29,12 +29,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Activity not found" }, { status: 404 })
     }
 
-    // Get user brand voice
+    // Get user brand voice and tier
     const user = await db.user.findFirst({
       where: { clerkId: userId },
     })
 
     const brandVoice = user?.brandVoice ? JSON.parse(user.brandVoice).tone : undefined
+    const userTier = (user?.tier === "premium" ? "premium" : "standard") as "standard" | "premium"
 
     // Extract insight
     const insightData = await extractInsight(
@@ -44,7 +45,8 @@ export async function POST(req: Request) {
         type: activity.type,
         humanInput,
       },
-      brandVoice
+      brandVoice,
+      userTier
     )
 
     // Save insight
