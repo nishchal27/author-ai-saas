@@ -19,17 +19,89 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  // Brand settings
-  brandVoice    String?  // JSON: tone, style preferences
-  brandColors   String?  // JSON: color palette
-  visualStyle   String?  // JSON: visual preferences
+  // Active product context
+  activeProductId String?
 
   // Relations
+  products      Product[]
   integrations  Integration[]
   activities    Activity[]
   insights      Insight[]
   contentDrafts ContentDraft[]
   schedules     Schedule[]
+}
+
+// ============================================
+// PRODUCT-AWARE MARKETING INTELLIGENCE
+// ============================================
+
+// Product: The core entity that drives all marketing decisions
+// One founder can have multiple products, each with its own strategy
+model Product {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  
+  // Product Classification (determines strategy)
+  type        String   // "saas", "course", "coaching", "physical", "event", "api", "service", "ngo"
+  industry    String   // e.g., "devtools", "education", "finance", "lifestyle", "enterprise"
+  audience    String   // e.g., "developers", "smb_owners", "consumers", "professionals"
+  stage       String   // "idea", "building", "launched", "growing", "mature"
+  salesMotion String   // "self_serve", "demo", "creator_led", "enterprise", "impulse"
+  
+  // Optional context for AI
+  description String?  @db.Text  // Brief product description
+  website     String?            // Product website/landing page
+  competitors String?  @db.Text  // Known competitors (helps AI understand positioning)
+  
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  strategy    MarketingStrategy?
+  activities  Activity[]
+  insights    Insight[]
+  contentDrafts ContentDraft[]
+
+  @@index([userId])
+}
+
+// MarketingStrategy: AI-generated, opinionated recommendations per product
+// This is the "Strategy Decision Layer" - the heart of AuthorAI's value
+model MarketingStrategy {
+  id          String   @id @default(cuid())
+  productId   String   @unique
+  
+  // Platform Recommendations (what TO do and what NOT to do)
+  platforms   String   @db.Text  // JSON: { recommended: [...], avoid: [...], reasoning: {...} }
+  
+  // Content Style
+  contentTypes String  @db.Text  // JSON: { recommended: [...], avoid: [...] }
+  tone        String   @db.Text  // JSON: { style: "...", examples: [...], avoid: [...] }
+  visualStyle String   @db.Text  // JSON: { style: "...", colors: "...", examples: [...] }
+  
+  // Execution Guidance
+  cadence     String   @db.Text  // JSON: { frequency: "...", reasoning: "..." }
+  proofTypes  String   @db.Text  // JSON: { types: [...], examples: [...] }
+  
+  // What NOT to do (very important - reduces decision fatigue)
+  antiPatterns String  @db.Text  // JSON: { avoid: [...], reasoning: {...} }
+  
+  // Strategy explanation (human-readable)
+  summary     String   @db.Text  // 2-3 sentence strategy summary
+  reasoning   String   @db.Text  // Detailed explanation of why these recommendations
+  
+  // Confidence and status
+  confidence  Float    @default(0.8)  // AI confidence in this strategy
+  status      String   @default("active") // "draft", "active", "outdated"
+  
+  generatedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relation
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
 model Integration {
@@ -52,6 +124,7 @@ model Integration {
 model Activity {
   id          String   @id @default(cuid())
   userId      String
+  productId   String?  // Links activity to specific product
   type        String   // "github_commit", "github_pr", "feedback", "manual"
   source      String   // "github", "manual", "upload"
   title       String
@@ -63,15 +136,18 @@ model Activity {
   updatedAt   DateTime @updatedAt
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product  Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
   insights Insight[]
 
   @@index([userId, processed])
+  @@index([productId])
   @@index([createdAt])
 }
 
 model Insight {
   id          String   @id @default(cuid())
   userId      String
+  productId   String?  // Links insight to specific product
   activityId  String?
   coreProblem String   @db.Text
   solution    String   @db.Text
@@ -85,15 +161,18 @@ model Insight {
   updatedAt   DateTime @updatedAt
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product      Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
   activity     Activity?     @relation(fields: [activityId], references: [id], onDelete: SetNull)
   contentDrafts ContentDraft[]
 
   @@index([userId, status])
+  @@index([productId])
 }
 
 model ContentDraft {
   id          String   @id @default(cuid())
   userId      String
+  productId   String?  // Links content to specific product (inherits strategy)
   insightId   String
   type        String   // "post", "blog", "carousel", "thread", "caption"
   platform    String?  // "linkedin", "twitter", "instagram", "blog"
@@ -111,10 +190,12 @@ model ContentDraft {
   updatedAt   DateTime @updatedAt
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
   insight Insight @relation(fields: [insightId], references: [id], onDelete: Cascade)
   schedules Schedule[]
 
   @@index([userId, status])
+  @@index([productId])
   @@index([insightId])
 }
 

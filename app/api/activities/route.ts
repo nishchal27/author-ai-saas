@@ -19,12 +19,22 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const processed = searchParams.get("processed")
+    const productId = searchParams.get("productId")
     const limit = parseInt(searchParams.get("limit") || "20")
 
     const activities = await db.activity.findMany({
       where: {
         userId: user.id,
         ...(processed !== null ? { processed: processed === "true" } : {}),
+        ...(productId ? { productId } : {}),
+      },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",
@@ -50,7 +60,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { type, title, description, metadata } = body
+    const { type, title, description, metadata, productId } = body
 
     if (!type || !title) {
       return NextResponse.json(
@@ -67,15 +77,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
+    // Use provided productId or user's active product
+    const targetProductId = productId || user.activeProductId
+
     const activity = await db.activity.create({
       data: {
         userId: user.id,
+        productId: targetProductId || null,
         type,
         source: "manual",
         title,
         description: description || null,
         metadata: metadata ? JSON.stringify(metadata) : null,
         processed: false,
+      },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     })
 

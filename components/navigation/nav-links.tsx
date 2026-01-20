@@ -4,10 +4,11 @@ import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
-import { Activity, FileText, Settings, Sparkles, Calendar, TrendingUp, LayoutDashboard } from "lucide-react"
+import { Activity, FileText, Settings, Sparkles, Calendar, TrendingUp, LayoutDashboard, Target } from "lucide-react"
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/dashboard/strategy", icon: Target, label: "Strategy" },
   { href: "/dashboard/activities", icon: Activity, label: "Activities" },
   { href: "/dashboard/insights", icon: Sparkles, label: "Insights" },
   { href: "/dashboard/content", icon: FileText, label: "Content" },

@@ -32,6 +32,12 @@ export async function GET(req: Request) {
       take: limit,
       include: {
         insight: true,
+        product: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     })
 

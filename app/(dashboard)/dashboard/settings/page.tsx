@@ -48,7 +48,7 @@ async function syncGitHub(data: { repoUrl: string }) {
   return res.json()
 }
 
-async function connectLinkedIn(data: { accessToken: string; refreshToken?: string }) {
+async function connectLinkedIn(data: { accessToken: string; refreshToken?: string; organizationId?: string }) {
   const res = await fetch("/api/integrations/linkedin", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -104,6 +104,14 @@ export default function SettingsPage() {
         try {
           const config = JSON.parse(githubIntegration.config)
           setGithubRepo(config.defaultRepo || "")
+        } catch {}
+      }
+      // Load LinkedIn config if exists
+      const linkedinIntegration = settingsData.user.integrations.find((i: any) => i.type === "linkedin")
+      if (linkedinIntegration?.config) {
+        try {
+          const config = JSON.parse(linkedinIntegration.config)
+          setLinkedinOrgId(config.organizationId || "")
         } catch {}
       }
     }
@@ -177,6 +185,7 @@ export default function SettingsPage() {
         variant: "success",
       })
       setLinkedinToken("")
+      setLinkedinOrgId("")
     },
     onError: (error: any) => {
       toast({
@@ -242,6 +251,7 @@ export default function SettingsPage() {
     e.preventDefault()
     linkedinMutation.mutate({
       accessToken: linkedinToken,
+      organizationId: linkedinOrgId || undefined,
     })
   }
 
@@ -479,6 +489,22 @@ export default function SettingsPage() {
               />
               <p className="text-xs text-muted-foreground">
                 Get your access token from LinkedIn Developer Portal. OAuth flow coming soon.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="linkedinOrgId">
+                LinkedIn Organization ID (Optional - for image uploads)
+              </Label>
+              <Input
+                id="linkedinOrgId"
+                type="text"
+                placeholder="e.g., 12345678"
+                value={linkedinOrgId}
+                onChange={(e) => setLinkedinOrgId(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Required for image uploads. Find it in your LinkedIn Company Page URL or Developer Portal.
+                Leave empty if you only want to publish text posts.
               </p>
             </div>
             <Button type="submit" disabled={linkedinMutation.isPending}>

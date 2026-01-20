@@ -2,10 +2,8 @@ import { auth } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
 import { db } from "@/lib/db"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
 import { UserButton } from "@clerk/nextjs"
-import { Activity, FileText, Settings, Sparkles, Calendar, TrendingUp } from "lucide-react"
-import { OnboardingModal } from "@/components/onboarding/onboarding-modal"
+import { Target } from "lucide-react"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { NavLinks } from "@/components/navigation/nav-links"
 
@@ -60,8 +58,9 @@ export default async function DashboardLayout({
       <nav className="border-b bg-card">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-6">
-            <Link href="/dashboard" className="text-xl font-semibold hover:opacity-80 transition-opacity">
-              Founder OS
+            <Link href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <Target className="h-5 w-5 text-primary" />
+              <span className="text-xl font-semibold">AuthorAI</span>
             </Link>
             <NavLinks />
           </div>
@@ -71,7 +70,6 @@ export default async function DashboardLayout({
       <ErrorBoundary>
         <main className="container mx-auto px-4 py-8">{children}</main>
       </ErrorBoundary>
-      <OnboardingModal />
     </div>
   )
 }

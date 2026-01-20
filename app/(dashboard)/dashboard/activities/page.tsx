@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Sparkles } from "lucide-react"
+import { Plus, Sparkles, Package } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
@@ -17,6 +17,12 @@ import { useState, useMemo } from "react"
 async function fetchActivities() {
   const res = await fetch("/api/activities")
   if (!res.ok) throw new Error("Failed to fetch activities")
+  return res.json()
+}
+
+async function fetchProducts() {
+  const res = await fetch("/api/products")
+  if (!res.ok) throw new Error("Failed to fetch products")
   return res.json()
 }
 
@@ -42,14 +48,25 @@ export default function ActivitiesPage() {
     queryFn: fetchActivities,
   })
 
+  const { data: productsData } = useQuery({
+    queryKey: ["products"],
+    queryFn: fetchProducts,
+  })
+
+  const activeProduct = productsData?.products?.find(
+    (p: any) => p.id === productsData?.activeProductId
+  ) || productsData?.products?.[0]
+
   const extractMutation = useMutation({
     mutationFn: extractInsight,
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["activities"] })
       queryClient.invalidateQueries({ queryKey: ["insights"] })
       toast({
         title: "Insight extracted",
-        description: "Your insight has been created. Generating content...",
+        description: data.productApplied 
+          ? `Insight created with ${activeProduct?.name} context. Generating content...`
+          : "Your insight has been created. Generating content...",
         variant: "success",
       })
       router.push("/dashboard/insights")
@@ -126,8 +143,17 @@ export default function ActivitiesPage() {
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
                     <CardTitle className="text-lg">{activity.title}</CardTitle>
-                    <CardDescription>
+                    <CardDescription className="flex items-center gap-2">
                       {format(new Date(activity.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                      {activity.product && (
+                        <>
+                          <span>•</span>
+                          <span className="flex items-center gap-1">
+                            <Package className="h-3 w-3" />
+                            {activity.product.name}
+                          </span>
+                        </>
+                      )}
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
@@ -138,24 +164,24 @@ export default function ActivitiesPage() {
                   </div>
                 </div>
               </CardHeader>
-              {activity.description && (
-                <CardContent>
+              <CardContent>
+                {activity.description && (
                   <p className="text-sm text-muted-foreground">
                     {activity.description}
                   </p>
-                  {!activity.processed && (
-                    <Button
-                      size="sm"
-                      className="mt-4"
-                      onClick={() => extractMutation.mutate(activity.id)}
-                      disabled={extractMutation.isPending}
-                    >
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      {extractMutation.isPending ? "Extracting..." : "Extract Insight"}
-                    </Button>
-                  )}
-                </CardContent>
-              )}
+                )}
+                {!activity.processed && (
+                  <Button
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => extractMutation.mutate(activity.id)}
+                    disabled={extractMutation.isPending}
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    {extractMutation.isPending ? "Extracting..." : "Extract Insight"}
+                  </Button>
+                )}
+              </CardContent>
             </Card>
           ))}
           {filteredActivities.length === 0 && allActivities.length === 0 && <EmptyActivity />}

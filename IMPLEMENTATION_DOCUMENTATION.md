@@ -1,4 +1,8 @@
-# Founder OS - Complete Implementation Documentation
+# AuthorAI - Complete Implementation Documentation
+
+**Product-Aware Marketing Intelligence System**
+
+AuthorAI is a decision-first marketing assistant that adapts to **the PRODUCT being marketed**, not the user. The product's type, domain, audience, and maturity drive all marketing decisions.
 
 ## 📋 Table of Contents
 
@@ -6,12 +10,13 @@
 2. [Technology Stack](#technology-stack)
 3. [Database Schema](#database-schema)
 4. [Core Features Implementation](#core-features-implementation)
-5. [API Endpoints](#api-endpoints)
-6. [AI Integration](#ai-integration)
-7. [User Interface Components](#user-interface-components)
-8. [Workflows & User Journeys](#workflows--user-journeys)
-9. [Security & Authentication](#security--authentication)
-10. [Deployment & Infrastructure](#deployment--infrastructure)
+5. [Product & Strategy System](#product--strategy-system)
+6. [API Endpoints](#api-endpoints)
+7. [AI Integration](#ai-integration)
+8. [User Interface Components](#user-interface-components)
+9. [Workflows & User Journeys](#workflows--user-journeys)
+10. [Security & Authentication](#security--authentication)
+11. [Deployment & Infrastructure](#deployment--infrastructure)
 
 ---
 
@@ -19,29 +24,38 @@
 
 ### High-Level Architecture
 
-Founder OS follows a **layered architecture** with clear separation of concerns:
+AuthorAI follows a **product-first, layered architecture** with clear separation of concerns:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    Frontend Layer                       │
 │  Next.js 14.2 App Router | React | TypeScript         │
-│  - Pages (Dashboard, Activities, Insights, etc.)        │
-│  - Components (UI, Business Logic)                     │
-│  - State Management (TanStack Query, Zustand)         │
+│  - Product Onboarding & Strategy Pages                 │
+│  - Dashboard (Product-Aware)                           │
+│  - Activities, Insights, Content (Product-Linked)     │
+│  - State Management (TanStack Query)                  │
 └─────────────────────────────────────────────────────────┘
                             │
 ┌─────────────────────────────────────────────────────────┐
 │                    API Layer                            │
 │  Next.js API Routes | Server Actions                   │
-│  - RESTful endpoints                                    │
-│  - Authentication middleware                            │
-│  - Request validation                                   │
+│  - Product & Strategy Management                        │
+│  - Product-Aware Content Generation                    │
+│  - Authentication middleware                          │
+└─────────────────────────────────────────────────────────┘
+                            │
+┌─────────────────────────────────────────────────────────┐
+│            Strategy Decision Layer (NEW)                │
+│  - Product Profile Analysis                            │
+│  - Marketing Strategy Generation                       │
+│  - Platform Recommendations                           │
+│  - Anti-Pattern Detection                              │
 └─────────────────────────────────────────────────────────┘
                             │
 ┌─────────────────────────────────────────────────────────┐
 │                  Business Logic Layer                   │
-│  - Core Insight Agent (Claude)                         │
-│  - Content Translation Agent (Claude)                  │
+│  - Product-Aware Insight Agent (Claude)                │
+│  - Strategy-Guided Content Agent (Claude)             │
 │  - Visual Generation (DALL·E)                          │
 │  - GitHub Integration                                   │
 │  - Social Media Publishing                              │
@@ -50,8 +64,9 @@ Founder OS follows a **layered architecture** with clear separation of concerns:
 ┌─────────────────────────────────────────────────────────┐
 │                    Data Layer                            │
 │  Prisma ORM | PostgreSQL                                │
-│  - User data                                            │
-│  - Activities, Insights, Content                        │
+│  - User & Products                                      │
+│  - Marketing Strategies (per product)                  │
+│  - Activities, Insights, Content (product-linked)      │
 │  - Schedules, Analytics                                 │
 └─────────────────────────────────────────────────────────┘
                             │
@@ -69,11 +84,14 @@ Founder OS follows a **layered architecture** with clear separation of concerns:
 
 ### Architecture Principles
 
-1. **Human-in-the-Loop**: All content requires human approval
-2. **Signal-Based**: Content derived from real product activity
-3. **Modular Design**: Each layer is independent and testable
-4. **Type Safety**: TypeScript throughout
-5. **Scalable**: Designed to handle growth
+1. **Product-First**: The PRODUCT determines strategy, not user preferences
+2. **Decision-First**: AI helps decide what to do and what NOT to do
+3. **Human-in-the-Loop**: All content requires human approval
+4. **Signal-Based**: Content derived from real product activity
+5. **Explainable**: Every recommendation includes reasoning
+6. **Modular Design**: Each layer is independent and testable
+7. **Type Safety**: TypeScript throughout
+8. **Scalable**: Designed to handle multiple products per founder
 
 ---
 
@@ -118,19 +136,33 @@ Founder OS follows a **layered architecture** with clear separation of concerns:
 
 ```
 User
+├── Product[] (One-to-many) - NEW: Core entity
+│   └── MarketingStrategy (One-to-one) - NEW: AI-generated strategy
 ├── Integration[] (GitHub, LinkedIn, Twitter)
-├── Activity[] (Commits, PRs, Manual)
-├── Insight[] (Extracted from activities)
-├── ContentDraft[] (Generated from insights)
+├── Activity[] (Product-linked)
+├── Insight[] (Product-linked)
+├── ContentDraft[] (Product-linked)
 └── Schedule[] (Publishing schedule)
 
+Product - NEW
+├── MarketingStrategy (One-to-one)
+├── Activity[] (One-to-many)
+├── Insight[] (One-to-many)
+└── ContentDraft[] (One-to-many)
+
+MarketingStrategy - NEW
+└── Product (One-to-one)
+
 Activity
+├── Product (Many-to-one) - NEW
 └── Insight[] (One-to-many)
 
 Insight
+├── Product (Many-to-one) - NEW
 └── ContentDraft[] (One-to-many)
 
 ContentDraft
+├── Product (Many-to-one) - NEW
 └── Schedule[] (One-to-many)
 
 Schedule
@@ -147,37 +179,124 @@ model User {
   clerkId       String   @unique
   email         String   @unique
   name          String?
-  brandVoice    String?  // JSON: tone, style
-  brandColors   String?  // JSON: color palette
-  visualStyle   String?  // JSON: visual preferences
-  // Relations...
+  tier          String   @default("standard") // "standard" | "premium"
+  activeProductId String? // NEW: Active product context
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  products      Product[] // NEW
+  integrations  Integration[]
+  activities    Activity[]
+  insights      Insight[]
+  contentDrafts ContentDraft[]
+  schedules     Schedule[]
 }
 ```
 
-**Purpose**: Stores user account and brand preferences
+**Purpose**: Stores user account. Now supports multiple products with active product context.
+
+#### Product (NEW - Core Entity)
+```prisma
+model Product {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  
+  // Product Classification (determines strategy)
+  type        String   // "saas", "course", "coaching", "physical", "event", "api", "service", "ngo"
+  industry    String   // e.g., "devtools", "education", "finance"
+  audience    String   // "developers", "smb_owners", "consumers", etc.
+  stage       String   // "idea", "building", "launched", "growing", "mature"
+  salesMotion String   // "self_serve", "demo", "creator_led", "enterprise", "impulse"
+  
+  // Optional context
+  description String?  @db.Text
+  website     String?
+  competitors String?  @db.Text
+  
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user        User
+  strategy    MarketingStrategy?
+  activities  Activity[]
+  insights    Insight[]
+  contentDrafts ContentDraft[]
+}
+```
+
+**Purpose**: The core entity that drives all marketing decisions. Each product has its own marketing strategy.
+
+#### MarketingStrategy (NEW - Strategy Decision Layer)
+```prisma
+model MarketingStrategy {
+  id          String   @id @default(cuid())
+  productId   String   @unique
+  
+  // Platform Recommendations
+  platforms   String   @db.Text  // JSON: { recommended: [...], avoid: [...], reasoning: {...} }
+  
+  // Content Style
+  contentTypes String  @db.Text  // JSON: { recommended: [...], avoid: [...] }
+  tone        String   @db.Text  // JSON: { style: "...", examples: [...], avoid: [...] }
+  visualStyle String   @db.Text  // JSON: { style: "...", examples: [...] }
+  
+  // Execution Guidance
+  cadence     String   @db.Text  // JSON: { frequency: "...", reasoning: "..." }
+  proofTypes  String   @db.Text  // JSON: { types: [...], examples: [...] }
+  
+  // What NOT to do (very important)
+  antiPatterns String  @db.Text  // JSON: { avoid: [...], reasoning: {...} }
+  
+  // Strategy explanation
+  summary     String   @db.Text  // 2-3 sentence strategy summary
+  reasoning   String   @db.Text  // Detailed explanation
+  
+  confidence  Float    @default(0.8)
+  status      String   @default("active")
+  generatedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relation
+  product     Product
+}
+```
+
+**Purpose**: AI-generated, opinionated marketing recommendations per product. The heart of AuthorAI's value.
 
 #### Activity
 ```prisma
 model Activity {
   id          String   @id @default(cuid())
   userId      String
+  productId   String?  // NEW: Links to product
   type        String   // "github_commit", "github_pr", "feedback", "manual"
   source      String   // "github", "manual", "upload"
   title       String
   description String?  @db.Text
   metadata    String?  @db.Text // JSON
   processed   Boolean  @default(false)
-  // Relations...
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user     User
+  product  Product? // NEW
+  insights Insight[]
 }
 ```
 
-**Purpose**: Tracks product activity (commits, PRs, manual entries)
+**Purpose**: Tracks product activity, now linked to specific products.
 
 #### Insight
 ```prisma
 model Insight {
   id          String   @id @default(cuid())
   userId      String
+  productId   String?  // NEW: Links to product
   activityId  String?
   coreProblem String   @db.Text
   solution    String   @db.Text
@@ -186,17 +305,26 @@ model Insight {
   impact      String?  @db.Text
   themes      String?  @db.Text // JSON array
   status      String   @default("draft")
-  // Relations...
+  approvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user         User
+  product      Product? // NEW
+  activity     Activity?
+  contentDrafts ContentDraft[]
 }
 ```
 
-**Purpose**: Stores AI-extracted insights from activities
+**Purpose**: Stores AI-extracted insights, now product-aware and framed for product's audience.
 
 #### ContentDraft
 ```prisma
 model ContentDraft {
   id          String   @id @default(cuid())
   userId      String
+  productId   String?  // NEW: Links to product (inherits strategy)
   insightId   String
   type        String   // "post", "blog", "carousel", "thread", "caption"
   platform    String?  // "linkedin", "twitter", "instagram", "blog"
@@ -207,11 +335,18 @@ model ContentDraft {
   cta         String?
   status      String   @default("draft")
   version     Int      @default(1)
-  // Relations...
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user    User
+  product Product? // NEW
+  insight Insight
+  schedules Schedule[]
 }
 ```
 
-**Purpose**: Stores generated content drafts
+**Purpose**: Stores generated content drafts, now linked to products and generated using product strategy.
 
 #### Schedule
 ```prisma
@@ -253,6 +388,56 @@ model Analytics {
 
 ## 🎯 Core Features Implementation
 
+### 0. Product Onboarding & Strategy Generation (NEW)
+
+#### Product Registration
+**Location**: `components/onboarding/product-onboarding.tsx`
+
+**Implementation**:
+- Conversational 5-step onboarding flow
+- Collects: product name, type, industry, audience, stage, sales motion
+- Optional: description, website, competitors
+- Feels like a guided conversation, not a form
+
+**Flow**:
+```
+New User → Product Onboarding Modal →
+Step 1: Product Name & Industry →
+Step 2: Product Type Selection →
+Step 3: Target Audience →
+Step 4: Stage & Sales Motion →
+Step 5: Optional Context →
+AI Generates Strategy → Dashboard
+```
+
+#### Strategy Decision Engine
+**Location**: `lib/strategy.ts`
+
+**Implementation**:
+- **10 encoded product patterns** from research (SaaS for devs, courses, coaching, physical products, events, APIs, services, NGOs)
+- **Audience-specific refinements** (developers, SMB owners, enterprise)
+- **AI-powered strategy generation** using Claude to refine heuristics
+- Every recommendation includes **"what to do"** AND **"what NOT to do"**
+- Summary always starts with: *"Because you are building X, we recommend Y..."*
+
+**Strategy Output**:
+- Platform recommendations (primary, secondary, avoid) with reasoning
+- Content types to use and avoid
+- Tone & voice guidance with examples
+- Visual style recommendations
+- Posting cadence (frequency + reasoning)
+- Proof types that build trust
+- Anti-patterns to avoid
+- Human-readable summary and detailed reasoning
+- Confidence score (0.0-1.0)
+
+**API Endpoint**: `POST /api/products` (auto-generates strategy)
+
+**Key Functions**:
+- `generateMarketingStrategy()`: Main strategy generation function
+- `formatStrategyForDisplay()`: Formats strategy for UI display
+- `refineForAudience()`: Applies audience-specific refinements
+
 ### 1. Activity Tracking
 
 #### Manual Activity Input
@@ -289,13 +474,15 @@ User Input → Form Validation → API Call → Database → Success Toast → R
 User Clicks Sync → API Call → Fetch from GitHub → Deduplicate → Create Activities → Success Toast
 ```
 
-### 2. Insight Extraction
+### 2. Insight Extraction (Product-Aware)
 
 #### Core Insight Agent
 **Location**: `lib/claude.ts` → `extractInsight()`
 
 **Implementation**:
-- Uses Claude 3.5 Sonnet API
+- Uses Claude 3.5 Sonnet/Opus API (tier-based)
+- **NEW**: Accepts `ProductContext` parameter
+- **NEW**: Frames insights appropriately for product's audience and industry
 - Structured prompt with system instructions
 - Extracts: problem, solution, audience, whyMatters, impact, themes
 - Returns structured JSON
@@ -304,29 +491,46 @@ User Clicks Sync → API Call → Fetch from GitHub → Deduplicate → Create A
 **Prompt Structure**:
 ```
 System Prompt: Principles (honest, signal-based, problem→solution)
-User Prompt: Activity data + human input + brand voice
-Output: Structured JSON insight
+User Prompt: Activity data + human input + brand voice + PRODUCT CONTEXT
+Output: Structured JSON insight (framed for product's audience)
 ```
+
+**Product Context Includes**:
+- Product name, type, industry
+- Target audience
+- Product stage
+- Optional description
 
 **API Endpoint**: `POST /api/insights/extract`
 
 **Flow**:
 ```
-Activity Selected → Extract Button → API Call → Claude Processing → 
-Parse JSON → Save Insight → Mark Activity Processed → Success Toast → Redirect
+Activity Selected → Extract Button → API Call → 
+Fetch Product Context → Claude Processing (with product context) → 
+Parse JSON → Save Insight (linked to product) → 
+Mark Activity Processed → Success Toast → Redirect
 ```
 
-### 3. Content Generation
+### 3. Content Generation (Strategy-Guided)
 
 #### Content Translation Agent
 **Location**: `lib/claude.ts` → `generateContent()`
 
 **Implementation**:
-- Uses Claude 3.5 Sonnet API
+- Uses Claude 3.5 Sonnet/Opus API (tier-based)
+- **NEW**: Accepts `ProductContext` and `StrategyContext` parameters
+- **NEW**: Follows product's marketing strategy (tone, platforms, anti-patterns)
+- **NEW**: Warns if using platform marked "avoid" in strategy
 - Takes insight data as input
 - Generates content based on type (post, blog, carousel, thread, caption)
 - Platform-specific optimization
 - Includes CTA and visual prompt
+
+**Strategy Guidance Applied**:
+- Tone & style from strategy
+- Proof types to use
+- Anti-patterns to avoid
+- Platform warnings if using non-recommended platform
 
 **Content Types**:
 - **post**: 200-500 words, LinkedIn/Twitter style
@@ -339,9 +543,17 @@ Parse JSON → Save Insight → Mark Activity Processed → Success Toast → Re
 
 **Flow**:
 ```
-Insight Selected → Generate Button → API Call → Claude Processing → 
-Parse JSON → Save Draft → Success Toast → Redirect to Content Page
+Insight Selected → Generate Button → API Call → 
+Fetch Product & Strategy → Claude Processing (with strategy context) → 
+Parse JSON → Save Draft (linked to product) → 
+Return platformWarning if applicable → 
+Success Toast → Redirect to Content Page
 ```
+
+**Response Includes**:
+- Generated draft
+- `platformWarning` (if platform is not recommended)
+- `strategyApplied` boolean flag
 
 ### 4. Visual Generation
 
@@ -489,10 +701,215 @@ Save to Database
 
 ---
 
+## 🎯 Product & Strategy System
+
+### Core Concept
+
+AuthorAI adapts to **the PRODUCT being marketed**, not the user. The product's type, domain, audience, and maturity drive all marketing decisions.
+
+### Product Onboarding Flow
+
+**Location**: `components/onboarding/product-onboarding.tsx`
+
+**Steps**:
+1. **Product Name & Industry**: Basic product identification
+2. **Product Type**: SaaS, Course, Coaching, Physical, Event, API, Service, NGO
+3. **Target Audience**: Developers, SMB Owners, Consumers, Professionals, Learners, Enterprise, Creators
+4. **Stage & Sales Motion**: Product maturity and sales approach
+5. **Optional Context**: Description, website, competitors
+
+**On Completion**:
+- Product saved to database
+- Marketing strategy automatically generated via AI
+- Strategy saved to `MarketingStrategy` model
+- Product set as active (if first product)
+
+### Strategy Display
+
+**Location**: `components/strategy/strategy-display.tsx`, `app/(dashboard)/dashboard/strategy/page.tsx`
+
+**Features**:
+- Full strategy visualization page (`/dashboard/strategy`)
+- Quick-view cards on dashboard
+- Platform recommendations (use/avoid) with reasoning
+- Tone & voice guidance
+- Posting cadence recommendations
+- Anti-patterns to avoid
+- Expandable detailed reasoning
+- Strategy regeneration capability
+
+### Multi-Product Support
+
+**Location**: `components/navigation/product-switcher.tsx`
+
+**Features**:
+- Product switcher in navigation
+- Each product has independent strategy
+- Activities, insights, and content linked to products
+- Active product context maintained across app
+
+### Strategy Decision Engine Details
+
+**Location**: `lib/strategy.ts`
+
+**Architecture**:
+1. **Heuristic Patterns**: 10 encoded product profiles with baseline recommendations
+2. **Audience Refinements**: Audience-specific adjustments (developers vs SMB owners)
+3. **AI Refinement**: Claude validates and refines recommendations with product-specific context
+4. **Output**: Complete strategy with platforms, tone, cadence, anti-patterns, and reasoning
+
+**Example Strategy Output**:
+```json
+{
+  "summary": "Because you are building Acme Analytics, we recommend focusing on Twitter/X and GitHub with technical, low-hype content. Skip LinkedIn sales posts — developers trust competence, not persuasion.",
+  "platforms": [
+    { "platform": "twitter", "priority": "primary", "reasoning": "Dev community lives here" },
+    { "platform": "github", "priority": "primary", "reasoning": "Build in public, show the work" },
+    { "platform": "linkedin", "priority": "avoid", "reasoning": "Developers trust competence, not sales posts" }
+  ],
+  "tone": {
+    "style": "Honest, technical, low-hype",
+    "examples": ["Built this because...", "Here's how the architecture works..."],
+    "avoid": ["Motivational content", "Sales posts", "Hype language"]
+  },
+  "cadence": { "frequency": "2-3 posts per week", "postsPerWeek": 2, "reasoning": "Consistent but sustainable" },
+  "antiPatterns": [
+    { "pattern": "LinkedIn sales posts", "reasoning": "Developers trust competence, not persuasion" }
+  ],
+  "confidence": 0.85
+}
+```
+
+---
+
 ## 🔌 API Endpoints
 
 ### Authentication
 All endpoints require Clerk authentication via `auth()` from `@clerk/nextjs/server`
+
+### Products (NEW)
+
+#### `GET /api/products`
+**Purpose**: Get all products for user with their strategies
+**Response**:
+```json
+{
+  "products": [
+    {
+      "id": "string",
+      "name": "string",
+      "type": "string",
+      "industry": "string",
+      "audience": "string",
+      "stage": "string",
+      "salesMotion": "string",
+      "strategy": { ... }
+    }
+  ],
+  "activeProductId": "string"
+}
+```
+
+#### `POST /api/products`
+**Purpose**: Create a new product and generate its marketing strategy
+**Body**:
+```json
+{
+  "name": "string",
+  "type": "saas" | "course" | "coaching" | "physical" | "event" | "api" | "service" | "ngo",
+  "industry": "string",
+  "audience": "developers" | "smb_owners" | "consumers" | "professionals" | "learners" | "enterprise" | "creators",
+  "stage": "idea" | "building" | "launched" | "growing" | "mature",
+  "salesMotion": "self_serve" | "demo" | "creator_led" | "enterprise" | "impulse",
+  "description": "string (optional)",
+  "website": "string (optional)",
+  "competitors": "string (optional)"
+}
+```
+
+**Process**:
+1. Creates product in database
+2. Generates marketing strategy via Strategy Decision Engine
+3. Saves strategy to `MarketingStrategy` model
+4. Sets as active product if it's the first one
+5. Returns product with strategy
+
+**Response**:
+```json
+{
+  "product": { ... },
+  "strategyGenerated": true
+}
+```
+
+#### `PATCH /api/products`
+**Purpose**: Set active product
+**Body**:
+```json
+{
+  "activeProductId": "string"
+}
+```
+
+#### `GET /api/products/[id]`
+**Purpose**: Get a specific product with its strategy
+**Response**:
+```json
+{
+  "product": {
+    "id": "string",
+    "name": "string",
+    "strategy": { ... },
+    "_count": {
+      "activities": number,
+      "insights": number,
+      "contentDrafts": number
+    }
+  }
+}
+```
+
+#### `PATCH /api/products/[id]`
+**Purpose**: Update a product
+**Body**:
+```json
+{
+  "name": "string (optional)",
+  "type": "string (optional)",
+  "industry": "string (optional)",
+  "audience": "string (optional)",
+  "stage": "string (optional)",
+  "salesMotion": "string (optional)",
+  "description": "string (optional)",
+  "website": "string (optional)",
+  "competitors": "string (optional)",
+  "isActive": boolean (optional)
+}
+```
+
+#### `DELETE /api/products/[id]`
+**Purpose**: Delete a product (cascades to strategy, activities, insights, content)
+
+#### `GET /api/products/[id]/strategy`
+**Purpose**: Get formatted strategy for display
+**Response**:
+```json
+{
+  "strategy": { ... },
+  "formatted": {
+    "headline": "string",
+    "platforms": [...],
+    "keyActions": [...],
+    "dontDo": [...]
+  },
+  "generatedAt": "datetime",
+  "confidence": 0.8
+}
+```
+
+#### `POST /api/products/[id]/strategy`
+**Purpose**: Regenerate marketing strategy for a product
+**Response**: Same as GET, but with newly generated strategy
 
 ### Activities
 
@@ -500,6 +917,7 @@ All endpoints require Clerk authentication via `auth()` from `@clerk/nextjs/serv
 **Purpose**: Fetch user's activities
 **Query Params**:
 - `processed`: boolean (filter by processed status)
+- `productId`: string (filter by product)
 - `limit`: number (default: 20)
 
 **Response**:
@@ -512,6 +930,11 @@ All endpoints require Clerk authentication via `auth()` from `@clerk/nextjs/serv
       "title": "string",
       "description": "string",
       "processed": boolean,
+      "productId": "string (optional)",
+      "product": {
+        "id": "string",
+        "name": "string"
+      },
       "createdAt": "datetime"
     }
   ]
@@ -519,16 +942,19 @@ All endpoints require Clerk authentication via `auth()` from `@clerk/nextjs/serv
 ```
 
 #### `POST /api/activities`
-**Purpose**: Create new activity
+**Purpose**: Create new activity (automatically linked to active product)
 **Body**:
 ```json
 {
   "type": "manual",
   "title": "string",
   "description": "string (optional)",
-  "metadata": "object (optional)"
+  "metadata": "object (optional)",
+  "productId": "string (optional)"
 }
 ```
+
+**Note**: If `productId` not provided, uses user's `activeProductId`
 
 ### Insights
 
@@ -539,11 +965,12 @@ All endpoints require Clerk authentication via `auth()` from `@clerk/nextjs/serv
 - `limit`: number
 
 #### `POST /api/insights/extract`
-**Purpose**: Extract insight from activity
+**Purpose**: Extract insight from activity (product-aware)
 **Body**:
 ```json
 {
   "activityId": "string",
+  "productId": "string (optional)",
   "humanInput": {
     "whatChanged": "string (optional)",
     "whoBenefited": "string (optional)",
@@ -554,28 +981,73 @@ All endpoints require Clerk authentication via `auth()` from `@clerk/nextjs/serv
 
 **Process**:
 1. Fetches activity
-2. Gets user brand voice
-3. Calls Claude API
-4. Parses JSON response
-5. Saves insight
-6. Marks activity as processed
+2. Gets product context (from activity, provided productId, or active product)
+3. Gets user brand voice
+4. Calls Claude API with product context
+5. Parses JSON response (insights framed for product's audience)
+6. Saves insight (linked to product)
+7. Marks activity as processed and links to product
+
+**Response**:
+```json
+{
+  "insight": { ... },
+  "productApplied": true
+}
+```
 
 ### Content
 
 #### `GET /api/content/drafts`
-**Purpose**: Fetch content drafts
+**Purpose**: Fetch content drafts (now includes product info)
 **Query Params**:
 - `status`: string
 - `limit`: number
 
+**Response**:
+```json
+{
+  "drafts": [
+    {
+      "id": "string",
+      "productId": "string (optional)",
+      "product": {
+        "id": "string",
+        "name": "string"
+      },
+      ...
+    }
+  ]
+}
+```
+
 #### `POST /api/content/generate`
-**Purpose**: Generate content from insight
+**Purpose**: Generate content from insight (strategy-guided)
 **Body**:
 ```json
 {
   "insightId": "string",
+  "productId": "string (optional)",
   "type": "post" | "blog" | "carousel" | "thread" | "caption",
   "platform": "linkedin" | "twitter" | "instagram" | "blog"
+}
+```
+
+**Process**:
+1. Fetches insight
+2. Gets product and strategy (from insight, provided productId, or active product)
+3. Gets user brand voice and tier
+4. Calls Claude API with product context AND strategy context
+5. Generates content following strategy (tone, anti-patterns, proof types)
+6. Saves draft (linked to product)
+7. Checks platform alignment with strategy
+
+**Response**:
+```json
+{
+  "draft": { ... },
+  "platformWarning": "string (if platform not recommended)",
+  "strategyApplied": true
 }
 ```
 
@@ -773,9 +1245,9 @@ export const anthropic = new Anthropic({
 })
 ```
 
-#### Insight Extraction
+#### Insight Extraction (Product-Aware)
 
-**Function**: `extractInsight()`
+**Function**: `extractInsight(activityData, brandVoice, userTier, productContext?)`
 
 **Model Selection** (tier-based):
 - Premium tier: `claude-3-5-opus-20241022`
@@ -786,22 +1258,29 @@ export const anthropic = new Anthropic({
 
 **System Prompt**:
 - Principles: honest, signal-based, problem→solution
+- Frame insights appropriately for product's audience and industry
 - Output format specification
 - No fabrication rules
 
 **User Prompt**:
 - Activity title, type, description
 - Human input (whatChanged, whoBenefited, whyMatters)
+- **Product Context** (NEW): name, type, industry, audience, stage, description
 - Brand voice preferences
+
+**Product Context Impact**:
+- Insights framed for product's target audience
+- Themes aligned with product's industry
+- Language appropriate for product stage
 
 **Response Parsing**:
 - Extracts JSON from text response
 - Validates structure
 - Returns typed object
 
-#### Content Generation
+#### Content Generation (Strategy-Guided)
 
-**Function**: `generateContent()`
+**Function**: `generateContent(insight, type, platform, brandVoice, userTier, productContext?, strategyContext?)`
 
 **Model Selection**:
 - Premium tier: `claude-3-5-opus-20241022` (all content types)
@@ -811,14 +1290,23 @@ export const anthropic = new Anthropic({
 **Max Tokens**: 4000
 **Output**: Content draft with title, content, CTA, visualPrompt
 
+**Strategy Context Applied** (NEW):
+- **Tone & Style**: Follows strategy's tone recommendations
+- **Proof Types**: Uses recommended proof types
+- **Anti-Patterns**: Avoids patterns marked in strategy
+- **Platform Warnings**: Warns if using platform marked "avoid"
+
 **Platform Guidance**:
 - LinkedIn: Professional, thoughtful, longer form
 - Twitter: Concise, punchy, 280 char limit
 - Instagram: Visual-first, engaging
 - Blog: In-depth, SEO-friendly
+- GitHub: Technical, precise, documentation-style
+- HackerNews: Technical, substantive, no marketing speak
 
 **Brand Voice Integration**:
-- Passes brand voice to Claude
+- Passes brand voice to Claude (as override if provided)
+- Strategy tone takes precedence
 - Maintains consistency across content
 
 ### OpenAI DALL·E Integration
@@ -860,28 +1348,46 @@ export const openai = new OpenAI({
 ### Page Components
 
 #### Dashboard (`app/(dashboard)/dashboard/page.tsx`)
-- Stat cards (Activities, Insights, Drafts)
-- Recent activities feed
+- **Product context display** (NEW): Shows active product name, type, audience, stage
+- **Strategy quick-view** (NEW): Displays strategy summary, recommended platforms, cadence
+- Stat cards (Activities, Insights, Drafts, Strategy Confidence)
+- Recent activities feed (product-linked)
 - Pending drafts list
+- **No product state** (NEW): Welcome screen with product onboarding CTA
 - Loading skeleton
 - Empty states with CTAs
 
+#### Strategy (`app/(dashboard)/dashboard/strategy/page.tsx`) (NEW)
+- Full strategy visualization
+- Product profile summary
+- Platform recommendations (use/avoid) with reasoning
+- Tone & voice guidance
+- Posting cadence
+- Proof types
+- Anti-patterns to avoid
+- Expandable detailed reasoning
+- Strategy regeneration button
+
 #### Activities (`app/(dashboard)/dashboard/activities/page.tsx`)
+- **Product badges** (NEW): Shows which product each activity belongs to
 - Search and filter
 - Activity cards
-- Extract insight button
+- Extract insight button (with product context)
 - Status badges
 - Loading skeleton
 - Empty state
 
 #### Insights (`app/(dashboard)/dashboard/insights/page.tsx`)
 - Insight cards with sections
-- Generate content buttons
+- Generate content buttons (strategy-guided)
 - Search and filter
 - Loading skeleton
 - Empty state
 
 #### Content (`app/(dashboard)/dashboard/content/page.tsx`)
+- **Product badges** (NEW): Shows which product each draft belongs to
+- **Strategy alignment warnings** (NEW): Amber banner if content uses platform marked "avoid"
+- **Platform badges** (NEW): Color-coded (green for primary, red for avoid)
 - Tab interface (Preview/Raw)
 - Content preview component
 - Edit interface
@@ -960,13 +1466,32 @@ export const openai = new OpenAI({
 - Responsive design
 - Hover states
 
-#### Onboarding (`components/onboarding/onboarding-modal.tsx`)
+#### Product Onboarding (`components/onboarding/product-onboarding.tsx`) (NEW)
 **Features**:
-- Multi-step flow
+- Conversational 5-step flow
+- Product name, type, industry, audience, stage, sales motion
+- Optional context (description, website, competitors)
 - Progress indicator
 - Step icons
-- Skip option
-- LocalStorage persistence
+- Product summary preview
+- Auto-generates strategy on completion
+
+#### Strategy Display (`components/strategy/strategy-display.tsx`) (NEW)
+**Features**:
+- Full strategy visualization
+- Platform recommendations with reasoning
+- Tone & voice guidance
+- Cadence recommendations
+- Anti-patterns display
+- Strategy regeneration
+- Compact and full display modes
+
+#### Product Switcher (`components/navigation/product-switcher.tsx`) (NEW)
+**Features**:
+- Dropdown for multiple products
+- Shows active product
+- Quick add product option
+- Compact mode for single product
 
 ### UI Components (shadcn/ui)
 
@@ -991,45 +1516,59 @@ All components from shadcn/ui library:
 
 ### Complete User Flow
 
-#### 1. Onboarding Flow
+#### 1. Product Onboarding Flow (NEW - First Step)
 ```
-New User Signs Up → Onboarding Modal → 
-Step 1: Welcome → Step 2: Track Activity → 
-Step 3: Extract Insights → Step 4: Generate Content → 
-Step 5: Schedule & Publish → Complete
+New User Signs Up → Product Onboarding Modal →
+Step 1: Product Name & Industry →
+Step 2: Product Type Selection →
+Step 3: Target Audience →
+Step 4: Stage & Sales Motion →
+Step 5: Optional Context →
+AI Generates Marketing Strategy →
+Strategy Displayed →
+Dashboard (Product-Aware)
 ```
 
-#### 2. Activity → Content Flow
+#### 2. Activity → Content Flow (Product-Aware)
 
 **Manual Activity**:
 ```
-Dashboard → New Activity → Fill Form → 
-Create Activity → Activities Page → 
-Extract Insight → Insights Page → 
-Generate Content → Content Page → 
-Review & Approve → Calendar → Schedule → 
-Auto-Publish → Analytics
+Dashboard (with active product) → New Activity → Fill Form → 
+Create Activity (linked to product) → Activities Page → 
+Extract Insight (with product context) → Insights Page → 
+Generate Content (with product strategy) → Content Page → 
+Review & Approve (with strategy alignment warnings) → 
+Calendar → Schedule → Auto-Publish → Analytics
 ```
 
 **GitHub Activity**:
 ```
 Settings → Connect GitHub → Sync GitHub → 
-Activities Page → Extract Insight → 
+Activities Page (product-linked) → Extract Insight (product-aware) → 
 [Same as manual flow]
 ```
 
-#### 3. Content Approval Flow
+#### 3. Content Approval Flow (Strategy-Aware)
 ```
-Content Page → View Draft → 
+Content Page → View Draft (with product context) → 
+Check Strategy Alignment (platform warnings) →
 Preview Tab → Review → 
 Edit (if needed) → Approve → 
 Calendar → Schedule → 
 Auto-Publish → Track Analytics
 ```
 
-#### 4. Publishing Flow
+#### 4. Multi-Product Flow (NEW)
 ```
-Scheduled Time Arrives → Cron Job Triggers → 
+Dashboard → Product Switcher → Select Product →
+All Activities/Insights/Content filtered by product →
+Each product has independent strategy →
+Switch between products seamlessly
+```
+
+#### 5. Publishing Flow
+```
+Scheduled Time Arrives → Inngest Cron Triggers → 
 Find Ready Schedules → Get Integration → 
 Publish to Platform → Update Status → 
 Store External ID → Sync Analytics (later)
@@ -1322,41 +1861,53 @@ const mutation = useMutation({
 ### Directory Structure
 
 ```
-founder-os/
+author-ai-saas/
 ├── app/
 │   ├── (auth)/              # Auth pages
 │   ├── (dashboard)/         # Dashboard pages
 │   │   └── dashboard/
-│   │       ├── page.tsx      # Main dashboard
-│   │       ├── activities/   # Activities pages
+│   │       ├── page.tsx      # Main dashboard (product-aware)
+│   │       ├── strategy/     # Strategy page (NEW)
+│   │       ├── activities/   # Activities pages (product-linked)
 │   │       ├── insights/     # Insights pages
-│   │       ├── content/      # Content pages
+│   │       ├── content/      # Content pages (strategy-aligned)
 │   │       ├── calendar/     # Calendar page
 │   │       ├── analytics/    # Analytics page
 │   │       └── settings/     # Settings page
 │   ├── api/                  # API routes
-│   │   ├── activities/
-│   │   ├── insights/
-│   │   ├── content/
+│   │   ├── products/         # Product & Strategy APIs (NEW)
+│   │   │   ├── route.ts      # GET, POST, PATCH products
+│   │   │   ├── [id]/         # Single product operations
+│   │   │   └── [id]/strategy/ # Strategy operations
+│   │   ├── activities/       # Activities (product-linked)
+│   │   ├── insights/         # Insights (product-aware)
+│   │   ├── content/          # Content (strategy-guided)
 │   │   ├── schedules/
 │   │   ├── analytics/
 │   │   ├── integrations/
 │   │   ├── settings/
 │   │   ├── cron/
-│   │   └── webhooks/
+│   │   └── inngest/          # Inngest webhooks
 │   ├── layout.tsx            # Root layout
-│   └── page.tsx              # Home/redirect
+│   └── page.tsx              # Landing page (repositioned)
 ├── components/
 │   ├── ui/                   # shadcn/ui components
 │   ├── navigation/           # Navigation components
+│   │   ├── nav-links.tsx     # Navigation links
+│   │   └── product-switcher.tsx # Product switcher (NEW)
 │   ├── onboarding/           # Onboarding components
+│   │   └── product-onboarding.tsx # Product onboarding (NEW)
+│   ├── strategy/             # Strategy components (NEW)
+│   │   └── strategy-display.tsx # Strategy visualization
 │   ├── empty-states/         # Empty state components
 │   ├── loading/              # Loading skeletons
-│   ├── content-preview.tsx  # Content preview
+│   ├── landing/              # Landing page components
+│   ├── content-preview.tsx   # Content preview
 │   ├── search-filter.tsx     # Search component
 │   └── error-boundary.tsx    # Error boundary
 ├── lib/
-│   ├── claude.ts             # Claude API
+│   ├── claude.ts             # Claude API (product-aware)
+│   ├── strategy.ts           # Strategy Decision Engine (NEW)
 │   ├── openai.ts             # OpenAI/DALL·E API
 │   ├── github.ts             # GitHub API
 │   ├── linkedin.ts           # LinkedIn API
@@ -1366,7 +1917,7 @@ founder-os/
 ├── hooks/
 │   └── use-toast.ts          # Toast hook
 ├── prisma/
-│   └── schema.prisma         # Database schema
+│   └── schema.prisma         # Database schema (Product, MarketingStrategy)
 └── middleware.ts             # Auth middleware
 ```
 
@@ -1382,27 +1933,47 @@ founder-os/
 
 ## 🎓 Key Design Decisions
 
-### 1. Human-in-the-Loop
+### 1. Product-First Architecture (NEW - Core Pivot)
+**Decision**: The PRODUCT determines strategy, not user preferences
+**Rationale**: Different products need different approaches. One founder can market multiple products correctly.
+**Implementation**: Product model → Strategy generation → Product-aware content generation
+
+### 2. Decision-First Approach (NEW)
+**Decision**: Tell founders what TO do and what NOT to do
+**Rationale**: Reduces decision fatigue. Confidence comes from knowing what to skip.
+**Implementation**: Strategy includes anti-patterns, platform recommendations (use/avoid), clear reasoning
+
+### 3. Strategy Decision Layer (NEW)
+**Decision**: Heuristics + AI refinement, not pure AI
+**Rationale**: Opinionated, explainable, conservative. Rules come first, AI refines.
+**Implementation**: 10 encoded product patterns → Audience refinements → Claude validation
+
+### 4. Human-in-the-Loop
 **Decision**: All content requires approval
 **Rationale**: Maintains founder voice, prevents mistakes
 **Implementation**: Status workflow (draft → approved → scheduled → published)
 
-### 2. Signal-Based Content
+### 5. Signal-Based Content
 **Decision**: Content derived from real activity
 **Rationale**: Honest, trust-building, no fake metrics
-**Implementation**: Activity → Insight → Content flow
+**Implementation**: Activity → Insight → Content flow (all product-linked)
 
-### 3. Platform-Specific Generation
+### 6. Strategy-Guided Content Generation (NEW)
+**Decision**: Content follows product's marketing strategy
+**Rationale**: Ensures content aligns with product's needs, not generic templates
+**Implementation**: Content generation uses strategy context (tone, anti-patterns, proof types)
+
+### 7. Platform-Specific Generation
 **Decision**: Generate content optimized for each platform
 **Rationale**: Better engagement, platform-specific best practices
-**Implementation**: Platform parameter in content generation
+**Implementation**: Platform parameter in content generation + strategy alignment warnings
 
-### 4. Automated Publishing
-**Decision**: Cron-based automation
-**Rationale**: Reliable, scalable, no external dependencies
-**Implementation**: Vercel Cron Jobs + `/api/cron/publish`
+### 8. Automated Publishing
+**Decision**: Inngest-based automation
+**Rationale**: Reliable, scalable, zero infrastructure
+**Implementation**: Inngest cron functions + event-driven analytics sync
 
-### 5. Manual Token Input (MVP)
+### 9. Manual Token Input (MVP)
 **Decision**: Manual tokens instead of OAuth
 **Rationale**: Faster to market, simpler implementation
 **Future**: OAuth flows documented for later
@@ -1500,32 +2071,61 @@ founder-os/
 
 ## 📊 Data Flow Diagrams
 
-### Activity → Content Flow
+### Product-First Flow (NEW)
+
+```
+┌─────────────┐
+│   Product   │
+│ Registration│
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│  Strategy   │
+│  Generation │
+│  (Claude +  │
+│  Heuristics)│
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│  Marketing  │
+│  Strategy   │
+│  (Stored)   │
+└─────────────┘
+```
+
+### Activity → Content Flow (Product-Aware)
 
 ```
 ┌─────────────┐
 │  Activity   │
-│  (GitHub/   │
-│   Manual)   │
+│  (Linked to │
+│   Product)  │
 └──────┬──────┘
        │
        ▼
-┌─────────────┐     ┌──────────────┐
-│  Extract    │────▶│   Insight    │
-│  Insight    │     │  (Claude)    │
+┌─────────────┐     ┌──────────────┐     ┌──────────────┐
+│  Extract    │────▶│   Insight    │     │   Product    │
+│  Insight    │     │  (Claude +   │◀────│   Context    │
+│  (Product-  │     │  Product     │     │              │
+│   Aware)    │     │  Context)    │     └──────────────┘
 └─────────────┘     └──────┬───────┘
                            │
                            ▼
-                    ┌──────────────┐
-                    │   Generate   │
-                    │   Content    │
-                    │  (Claude)    │
-                    └──────┬───────┘
-                           │
-                           ▼
+                    ┌──────────────┐     ┌──────────────┐
+                    │   Generate   │     │  Marketing   │
+                    │   Content    │◀────│  Strategy    │
+                    │  (Claude +   │     │  (Tone,      │
+                    │  Strategy)   │     │  Platforms,  │
+                    └──────┬───────┘     │  Anti-       │
+                           │            │  Patterns)   │
+                           ▼            └──────────────┘
                     ┌──────────────┐
                     │    Draft     │
-                    │  (Review)    │
+                    │  (Review +   │
+                    │  Alignment   │
+                    │  Warnings)   │
                     └──────┬───────┘
                            │
                            ▼
@@ -1623,25 +2223,42 @@ founder-os/
 
 ## 🎉 Summary
 
-**Founder OS** is a complete, production-ready SaaS application with:
+**AuthorAI** is a complete, production-ready **product-aware marketing intelligence system** with:
 
-- ✅ **7 Dashboard Pages**: All fully implemented
-- ✅ **20+ API Endpoints**: Complete REST API
-- ✅ **AI Integration**: Claude + DALL·E
+### Core Innovation
+- ✅ **Product-First Architecture**: The PRODUCT determines strategy, not user preferences
+- ✅ **Strategy Decision Engine**: AI generates opinionated marketing recommendations per product
+- ✅ **Multi-Product Support**: One founder can market multiple products, each with its own strategy
+- ✅ **Decision-First Approach**: Tells founders what TO do and what NOT to do
+
+### Implementation
+- ✅ **8 Dashboard Pages**: Dashboard, Strategy, Activities, Insights, Content, Calendar, Analytics, Settings
+- ✅ **30+ API Endpoints**: Complete REST API including Product & Strategy management
+- ✅ **AI Integration**: Claude (product-aware) + DALL·E
+- ✅ **Strategy System**: 10 encoded product patterns + AI refinement
 - ✅ **3 Social Platforms**: LinkedIn, Twitter, GitHub
 - ✅ **Automated Publishing**: Inngest-based (zero infrastructure)
 - ✅ **Analytics**: Complete tracking with automatic sync
-- ✅ **Professional UI/UX**: Polished and consistent
+- ✅ **Professional UI/UX**: Polished, calm, decision-focused
 
-**Total Implementation**: 
-- **~50+ Components**
-- **~30+ API Routes**
-- **~10+ Library Functions**
-- **7 Database Models**
-- **Complete User Flows**
+### Total Implementation
+- **~60+ Components** (including Product Onboarding, Strategy Display, Product Switcher)
+- **~35+ API Routes** (including Product & Strategy endpoints)
+- **~15+ Library Functions** (including Strategy Decision Engine)
+- **9 Database Models** (User, Product, MarketingStrategy, Activity, Insight, ContentDraft, Schedule, Analytics, Integration)
+- **Complete Product-Aware User Flows**
+
+### Key Features
+1. **Product Onboarding**: Conversational 5-step product registration
+2. **Strategy Generation**: Automatic AI-generated marketing strategy per product
+3. **Product-Aware Content**: Content generated using product strategy (tone, platforms, anti-patterns)
+4. **Strategy Alignment**: Warnings when content uses non-recommended platforms
+5. **Multi-Product**: Easy switching between products, each with independent strategy
 
 **Status**: ✅ **Production-Ready for Beta Launch**
 
+**Positioning**: "Product-aware marketing intelligence for founders. Know what marketing to do for YOUR product."
+
 ---
 
-*This documentation covers the complete implementation of Founder OS as of the current version. For updates and changes, refer to the codebase and commit history.*
+*This documentation covers the complete implementation of AuthorAI as of the current version. For updates and changes, refer to the codebase and commit history.*

@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { accessToken, refreshToken } = body
+    const { accessToken, refreshToken, organizationId } = body
 
     if (!accessToken) {
       return NextResponse.json(
@@ -26,6 +26,11 @@ export async function POST(req: Request) {
         { status: 400 }
       )
     }
+
+    // Store organization ID in config JSON
+    const config = organizationId
+      ? JSON.stringify({ organizationId })
+      : null
 
     const existing = await db.integration.findFirst({
       where: {
@@ -40,6 +45,7 @@ export async function POST(req: Request) {
         data: {
           accessToken,
           refreshToken: refreshToken || null,
+          config,
           isActive: true,
         },
       })
@@ -51,6 +57,7 @@ export async function POST(req: Request) {
           provider: "linkedin",
           accessToken,
           refreshToken: refreshToken || null,
+          config,
           isActive: true,
         },
       })
