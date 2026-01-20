@@ -1,7 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
-import { getLinkedInAnalytics } from "@/lib/linkedin"
-import { getTwitterAnalytics } from "@/lib/twitter"
+import { inngest } from "@/lib/inngest"
 import { NextResponse } from "next/server"
 
 export async function POST(req: Request) {
@@ -25,95 +24,102 @@ export async function POST(req: Request) {
     const body = await req.json()
     const { scheduleId } = body
 
-    // Get schedule
-    const schedule = await db.schedule.findFirst({
-      where: {
-        id: scheduleId || undefined,
-        userId: user.id,
-        status: "published",
-        externalId: { not: null },
-      },
-      include: {
-        contentDraft: true,
-      },
-    })
+    if (scheduleId) {
+      // Sync specific schedule
+      const schedule = await db.schedule.findFirst({
+        where: {
+          id: scheduleId,
+          userId: user.id,
+          status: "published",
+          externalId: { not: null },
+        },
+        include: {
+          user: {
+            include: {
+              integrations: true,
+            },
+          },
+        },
+      })
 
-    if (!schedule) {
-      return NextResponse.json(
-        { error: "Published schedule not found" },
-        { status: 404 }
-      )
-    }
-
-    // Get platform integration
-    const integration = user.integrations.find(
-      (i) => i.type === schedule.platform && i.isActive
-    )
-
-    if (!integration || !integration.accessToken) {
-      return NextResponse.json(
-        { error: "Integration not found" },
-        { status: 404 }
-      )
-    }
-
-    // Fetch analytics
-    let analytics: {
-      views: number
-      likes: number
-      comments: number
-      shares: number
-    }
-
-    try {
-      if (schedule.platform === "linkedin") {
-        analytics = await getLinkedInAnalytics(
-          integration.accessToken,
-          schedule.externalId!
-        )
-      } else if (schedule.platform === "twitter") {
-        analytics = await getTwitterAnalytics(
-          integration.accessToken,
-          schedule.externalId!
-        )
-      } else {
+      if (!schedule) {
         return NextResponse.json(
-          { error: "Platform not supported" },
-          { status: 400 }
+          { error: "Published schedule not found" },
+          { status: 404 }
         )
       }
-    } catch (error: any) {
-      return NextResponse.json(
-        { error: `Failed to fetch analytics: ${error.message}` },
-        { status: 500 }
+
+      const integration = schedule.user.integrations.find(
+        (i) => i.type === schedule.platform && i.isActive
       )
+
+      if (!integration || !integration.accessToken || !schedule.externalId) {
+        return NextResponse.json(
+          { error: "Integration not found" },
+          { status: 404 }
+        )
+      }
+
+      // Trigger Inngest event for analytics sync
+      await inngest.send({
+        name: "content/published",
+        data: {
+          scheduleId: schedule.id,
+          externalId: schedule.externalId,
+          platform: schedule.platform,
+          accessToken: integration.accessToken,
+        },
+      })
+
+      return NextResponse.json({
+        success: true,
+        message: "Analytics sync triggered",
+      })
+    } else {
+      // Sync all published schedules for user
+      const schedules = await db.schedule.findMany({
+        where: {
+          userId: user.id,
+          status: "published",
+          externalId: { not: null },
+        },
+        include: {
+          user: {
+            include: {
+              integrations: true,
+            },
+          },
+        },
+      })
+
+      const events = schedules
+        .map((schedule) => {
+          const integration = schedule.user.integrations.find(
+            (i) => i.type === schedule.platform && i.isActive
+          )
+          if (!integration || !integration.accessToken || !schedule.externalId) {
+            return null
+          }
+          return inngest.send({
+            name: "content/published",
+            data: {
+              scheduleId: schedule.id,
+              externalId: schedule.externalId,
+              platform: schedule.platform,
+              accessToken: integration.accessToken,
+            },
+          })
+        })
+        .filter(Boolean)
+
+      await Promise.all(events)
+
+      return NextResponse.json({
+        success: true,
+        triggered: events.length,
+        message: "Analytics sync triggered for all published content",
+      })
     }
-
-    // Calculate engagement rate
-    const engagement =
-      analytics.likes + analytics.comments + analytics.shares
-    const engagementRate =
-      analytics.views > 0 ? (engagement / analytics.views) * 100 : 0
-
-    // Save analytics
-    await db.analytics.create({
-      data: {
-        scheduleId: schedule.id,
-        platform: schedule.platform,
-        views: analytics.views,
-        likes: analytics.likes,
-        comments: analytics.comments,
-        shares: analytics.shares,
-        clicks: 0, // Would need to be fetched from platform
-        impressions: analytics.views,
-        engagement: engagementRate,
-      },
-    })
-
-    return NextResponse.json({
-      success: true,
-      analytics,
-    })
   } catch (error) {
     console.error("Error syncing analytics:", error)
     return NextResponse.json(

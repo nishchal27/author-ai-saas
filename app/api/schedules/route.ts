@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
+import { inngest } from "@/lib/inngest"
 import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
@@ -113,6 +114,9 @@ export async function POST(req: Request) {
       where: { id: contentDraftId },
       data: { status: "scheduled", scheduledAt: new Date(scheduledAt) },
     })
+
+    // Inngest will automatically pick up scheduled content via cron
+    // No need to queue manually - the checkScheduledContent function runs every 5 minutes
 
     return NextResponse.json({ schedule })
   } catch (error) {

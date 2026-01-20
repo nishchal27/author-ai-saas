@@ -63,6 +63,7 @@ Founder OS follows a **layered architecture** with clear separation of concerns:
 │  - GitHub API                                           │
 │  - LinkedIn API                                         │
 │  - Twitter/X API                                        │
+│  - Inngest (Workflow Automation)                        │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -105,8 +106,9 @@ Founder OS follows a **layered architecture** with clear separation of concerns:
 - **Twitter**: Twitter API v2
 
 ### Automation
-- **Scheduling**: Vercel Cron Jobs
-- **Webhooks**: n8n compatible endpoints
+- **Scheduling & Publishing**: Inngest (code-first workflow automation)
+- **Retry Logic**: Built-in Inngest retry with exponential backoff
+- **Analytics Sync**: Automatic via Inngest events and cron functions
 
 ---
 
@@ -413,38 +415,55 @@ DALL·E Processing → Store Image URL → Update Draft → Display Image
 - Status colors
 - Navigation controls
 
-### 7. Automated Publishing
+### 7. Automated Publishing & Scheduling
 
-#### Cron Job System
-**Location**: `app/api/cron/publish/route.ts`
+#### Inngest Integration
+**Location**: `lib/inngest.ts`, `app/api/inngest/[...inngest]/route.ts`
 
 **Implementation**:
-- Vercel Cron Jobs integration
-- Runs every 15 minutes (configurable)
-- Finds schedules ready to publish (within 15-minute window)
-- Publishes to platform
-- Updates status and stores external ID
-- Handles errors gracefully
+- Code-first workflow automation via Inngest
+- Zero infrastructure (no Redis needed)
+- Built-in retry logic with exponential backoff
+- Automatic scheduling and publishing
 
-**Security**:
-- CRON_SECRET authentication
-- Verifies authorization header
+**Inngest Functions**:
 
-**Vercel Config**: `vercel.json`
-```json
-{
-  "crons": [{
-    "path": "/api/cron/publish",
-    "schedule": "*/15 * * * *"
-  }]
-}
-```
+1. **`checkScheduledContent`** (Cron: Every 5 minutes)
+   - Finds schedules ready to publish (`scheduledAt <= now`)
+   - Publishes directly to platform APIs
+   - Updates database status
+   - Triggers analytics sync event (5 min delay)
+   - Built-in retry: 3 attempts
+
+2. **`syncAnalyticsAfterPublish`** (Event: `content/published`)
+   - Triggered 5 minutes after publishing
+   - Fetches analytics from platform APIs
+   - Saves to database
+   - Built-in retry: 2 attempts
+
+3. **`syncPublishedAnalytics`** (Cron: Every hour)
+   - Syncs analytics for all published content from last 24 hours
+   - Updates existing analytics records
+   - Handles missing integrations gracefully
+
+4. **`retryFailedPublishes`** (Cron: Every 30 minutes)
+   - Finds failed schedules from last 24 hours
+   - Retries only transient errors (timeout, network, rate limit)
+   - Skips permanent errors (auth failures, etc.)
 
 **Flow**:
 ```
-Cron Trigger → Check Schedules → Find Ready → Get Integration → 
-Publish to Platform → Update Status → Log Result
+Inngest Cron (5min) → Find Pending Schedules → Publish Directly → 
+Update Status → Trigger Event (5min delay) → Sync Analytics → 
+Save to Database
 ```
+
+**Benefits**:
+- No Redis/BullMQ needed
+- Automatic retry on failures
+- Zero infrastructure to manage
+- Free tier sufficient for solo founders
+- Easy to scale later if needed
 
 ### 8. Analytics Tracking
 
@@ -652,13 +671,18 @@ All endpoints require Clerk authentication via `auth()` from `@clerk/nextjs/serv
 ```
 
 #### `POST /api/analytics/sync`
-**Purpose**: Sync analytics for specific schedule
+**Purpose**: Trigger analytics sync for specific schedule or all published content
 **Body**:
 ```json
 {
-  "scheduleId": "string"
+  "scheduleId": "string" // Optional - if omitted, syncs all published content
 }
 ```
+
+**Process**:
+1. If `scheduleId` provided: Triggers Inngest event for that schedule
+2. If omitted: Triggers Inngest events for all published schedules
+3. Inngest function handles the actual sync (fetches from platform APIs)
 
 ### Integrations
 
@@ -704,34 +728,33 @@ All endpoints require Clerk authentication via `auth()` from `@clerk/nextjs/serv
 {
   "brandVoice": "string (JSON)",
   "brandColors": "string (JSON)",
-  "visualStyle": "string (JSON)"
+  "visualStyle": "string (JSON)",
+  "tier": "standard" | "premium"
 }
 ```
+
+**Tier Management**:
+- `standard`: Uses Sonnet 4.5 (Opus for blogs)
+- `premium`: Uses Opus 4.5 for all content
+- Default: `standard`
 
 ### Automation
 
 #### `GET /api/cron/publish`
-**Purpose**: Cron job endpoint for automated publishing
+**Purpose**: Legacy cron endpoint (kept for backward compatibility)
 **Headers**:
 - `Authorization: Bearer {CRON_SECRET}`
 
-**Process**:
-1. Authenticates with CRON_SECRET
-2. Finds schedules ready to publish
-3. Publishes each one
-4. Updates status
-5. Returns results
+**Note**: Inngest handles all automation automatically. This endpoint can trigger Inngest manually if needed, but Inngest functions run automatically via cron.
 
-#### `POST /api/webhooks/n8n`
-**Purpose**: n8n webhook endpoint
-**Body**:
-```json
-{
-  "action": "publish_scheduled" | "sync_analytics",
-  "scheduleId": "string",
-  "webhookSecret": "string"
-}
-```
+#### `POST /api/inngest/[...inngest]`
+**Purpose**: Inngest webhook endpoint
+**Description**: Handles all Inngest function invocations and webhooks
+**Functions Registered**:
+- `checkScheduledContent` - Publishes scheduled content
+- `syncAnalyticsAfterPublish` - Syncs analytics after publishing
+- `syncPublishedAnalytics` - Hourly analytics sync
+- `retryFailedPublishes` - Retries failed publishes
 
 ---
 
@@ -754,7 +777,10 @@ export const anthropic = new Anthropic({
 
 **Function**: `extractInsight()`
 
-**Model**: `claude-3-5-sonnet-20241022`
+**Model Selection** (tier-based):
+- Premium tier: `claude-3-5-opus-20241022`
+- Standard tier: `claude-3-5-sonnet-20241022`
+
 **Max Tokens**: 2000
 **Output**: Structured JSON
 
@@ -777,7 +803,11 @@ export const anthropic = new Anthropic({
 
 **Function**: `generateContent()`
 
-**Model**: `claude-3-5-sonnet-20241022`
+**Model Selection**:
+- Premium tier: `claude-3-5-opus-20241022` (all content types)
+- Standard tier + Blog: `claude-3-5-opus-20241022`
+- Standard tier + Other: `claude-3-5-sonnet-20241022`
+
 **Max Tokens**: 4000
 **Output**: Content draft with title, content, CTA, visualPrompt
 
@@ -1054,8 +1084,8 @@ Store External ID → Sync Analytics (later)
 - Native Next.js support
 - Automatic deployments
 - Built-in environment variables
-- Cron jobs support
 - PostgreSQL addon available
+- Inngest integration (automatic)
 
 ### Environment Variables
 
@@ -1070,14 +1100,18 @@ NEXT_PUBLIC_APP_URL="https://yourdomain.com"
 CRON_SECRET="your-secure-random-string"
 ```
 
-**Optional** (for OAuth):
+**Optional** (for OAuth - future):
 ```env
 LINKEDIN_CLIENT_ID="..."
 LINKEDIN_CLIENT_SECRET="..."
 TWITTER_CLIENT_ID="..."
 TWITTER_CLIENT_SECRET="..."
-N8N_WEBHOOK_SECRET="..."
 ```
+
+**Inngest** (automatic - no config needed):
+- Functions auto-register when deployed
+- Create account at [inngest.com](https://inngest.com)
+- No additional environment variables required
 
 ### Database Setup
 
@@ -1094,10 +1128,16 @@ npx prisma generate
 npx prisma db push
 ```
 
-### Cron Jobs Setup
+### Inngest Setup
 
-**Vercel**: Automatically reads `vercel.json`
-**Manual**: Set up cron job calling `/api/cron/publish` with CRON_SECRET
+**Automatic**: Functions register automatically when deployed
+**Manual Setup**:
+1. Create account at [inngest.com](https://inngest.com)
+2. Create new app
+3. Deploy your application
+4. Functions will auto-register via `/api/inngest/[...inngest]` endpoint
+
+**Note**: Legacy cron endpoint (`/api/cron/publish`) is kept for backward compatibility but Inngest handles all automation automatically.
 
 ### Build & Deploy
 
@@ -1496,6 +1536,12 @@ founder-os/
                            │
                            ▼
                     ┌──────────────┐
+                    │   Inngest    │
+                    │  (Auto Pub)  │
+                    └──────┬───────┘
+                           │
+                           ▼
+                    ┌──────────────┐
                     │   Publish    │
                     │  (Platform)  │
                     └──────┬───────┘
@@ -1503,7 +1549,7 @@ founder-os/
                            ▼
                     ┌──────────────┐
                     │  Analytics   │
-                    │  (Track)     │
+                    │  (Auto Sync) │
                     └──────────────┘
 ```
 
@@ -1542,7 +1588,7 @@ founder-os/
 ### Pre-Deployment
 - [ ] All environment variables set
 - [ ] Database migrations run
-- [ ] Cron jobs configured
+- [ ] Inngest account created and configured
 - [ ] Error tracking set up (Sentry)
 - [ ] Analytics set up (optional)
 
@@ -1583,8 +1629,8 @@ founder-os/
 - ✅ **20+ API Endpoints**: Complete REST API
 - ✅ **AI Integration**: Claude + DALL·E
 - ✅ **3 Social Platforms**: LinkedIn, Twitter, GitHub
-- ✅ **Automated Publishing**: Cron-based
-- ✅ **Analytics**: Complete tracking
+- ✅ **Automated Publishing**: Inngest-based (zero infrastructure)
+- ✅ **Analytics**: Complete tracking with automatic sync
 - ✅ **Professional UI/UX**: Polished and consistent
 
 **Total Implementation**: 
