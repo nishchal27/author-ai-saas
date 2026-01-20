@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
-import { Edit, Check, X, Image as ImageIcon, Calendar } from "lucide-react"
+import { Edit, Check, X, Image as ImageIcon, Calendar, AlertTriangle, Package, Target } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { format } from "date-fns"
 import { useState, useMemo } from "react"
@@ -20,6 +20,33 @@ async function fetchDrafts() {
   const res = await fetch("/api/content/drafts")
   if (!res.ok) throw new Error("Failed to fetch drafts")
   return res.json()
+}
+
+async function fetchProducts() {
+  const res = await fetch("/api/products")
+  if (!res.ok) throw new Error("Failed to fetch products")
+  return res.json()
+}
+
+// Check if platform aligns with strategy
+function getPlatformAlignment(platform: string | null, strategy: any) {
+  if (!platform || !strategy) return null
+  
+  try {
+    const platforms = JSON.parse(strategy.platforms || "[]")
+    const platformRec = platforms.find(
+      (p: any) => p.platform.toLowerCase() === platform.toLowerCase()
+    )
+    
+    if (!platformRec) return null
+    
+    return {
+      priority: platformRec.priority,
+      reasoning: platformRec.reasoning,
+    }
+  } catch {
+    return null
+  }
 }
 
 async function updateDraft(id: string, data: { content?: string; status?: string }) {
@@ -53,6 +80,22 @@ export default function ContentPage() {
     queryKey: ["drafts"],
     queryFn: fetchDrafts,
   })
+
+  const { data: productsData } = useQuery({
+    queryKey: ["products"],
+    queryFn: fetchProducts,
+  })
+
+  // Build a map of productId -> strategy for quick lookups
+  const productStrategyMap = useMemo(() => {
+    const map: Record<string, any> = {}
+    productsData?.products?.forEach((p: any) => {
+      if (p.strategy) {
+        map[p.id] = p.strategy
+      }
+    })
+    return map
+  }, [productsData])
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState("")
@@ -182,25 +225,64 @@ export default function ContentPage() {
         </div>
       ) : (
         <div className="grid gap-6">
-          {filteredDrafts.map((draft: any) => (
-            <Card key={draft.id}>
+          {filteredDrafts.map((draft: any) => {
+            // Get strategy alignment for this draft
+            const strategy = draft.productId ? productStrategyMap[draft.productId] : null
+            const alignment = getPlatformAlignment(draft.platform, strategy)
+            const isAvoidPlatform = alignment?.priority === "avoid"
+            const product = productsData?.products?.find((p: any) => p.id === draft.productId)
+
+            return (
+            <Card key={draft.id} className={isAvoidPlatform ? "border-amber-200 dark:border-amber-800" : ""}>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
                     <CardTitle>
                       {draft.title || `${draft.type} for ${draft.platform || "general"}`}
                     </CardTitle>
-                    <CardDescription>
+                    <CardDescription className="flex items-center gap-2">
                       {format(new Date(draft.createdAt), "MMM d, yyyy")}
+                      {product && (
+                        <>
+                          <span>•</span>
+                          <span className="flex items-center gap-1">
+                            <Package className="h-3 w-3" />
+                            {product.name}
+                          </span>
+                        </>
+                      )}
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
+                    {draft.platform && (
+                      <Badge 
+                        variant={isAvoidPlatform ? "destructive" : alignment?.priority === "primary" ? "default" : "outline"}
+                      >
+                        {draft.platform}
+                      </Badge>
+                    )}
                     <Badge variant="outline">{draft.type}</Badge>
                     <Badge variant={draft.status === "approved" ? "default" : "secondary"}>
                       {draft.status}
                     </Badge>
                   </div>
                 </div>
+                {/* Strategy Alignment Warning */}
+                {isAvoidPlatform && (
+                  <div className="mt-3 p-3 rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm">
+                        <span className="font-medium text-amber-800 dark:text-amber-200">
+                          Platform not recommended for {product?.name}
+                        </span>
+                        <p className="text-amber-700 dark:text-amber-300 mt-1">
+                          {alignment?.reasoning}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="space-y-4">
                 {editingId === draft.id ? (
@@ -320,7 +402,8 @@ export default function ContentPage() {
                 )}
               </CardContent>
             </Card>
-          ))}
+            )
+          })}
           {filteredDrafts.length === 0 && allDrafts.length === 0 && <EmptyContent />}
           {filteredDrafts.length === 0 && allDrafts.length > 0 && (
             <Card>

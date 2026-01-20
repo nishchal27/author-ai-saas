@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Menu, X, Sparkles } from "lucide-react"
+import { Menu, X, Target } from "lucide-react"
 import { UserButton, useUser } from "@clerk/nextjs"
 
 export function Navbar() {
@@ -31,12 +31,9 @@ export function Navbar() {
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2 group">
-            <div className="relative">
-              <Sparkles className="h-6 w-6 lg:h-7 lg:w-7 text-primary group-hover:text-accent transition-colors" />
-              <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-            <span className="text-xl lg:text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Founder OS
+            <Target className="h-6 w-6 lg:h-7 lg:w-7 text-primary group-hover:text-primary/80 transition-colors" />
+            <span className="text-xl lg:text-2xl font-bold text-foreground">
+              AuthorAI
             </span>
           </Link>
 

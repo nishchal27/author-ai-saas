@@ -77,10 +77,17 @@ export const checkScheduledContent = inngest.createFunction(
           // Publish based on platform
           let externalId: string
           if (schedule.platform === "linkedin") {
+            // Extract organization ID from integration config
+            const config = integration.config
+              ? JSON.parse(integration.config)
+              : null
+            const organizationId = config?.organizationId
+
             const result = await publishToLinkedIn(
               integration.accessToken,
               schedule.contentDraft.content,
-              schedule.contentDraft.visualUrl || undefined
+              schedule.contentDraft.visualUrl || undefined,
+              organizationId
             )
             externalId = result.id
           } else if (schedule.platform === "twitter") {
@@ -418,10 +425,17 @@ export const retryFailedPublishes = inngest.createFunction(
             // Publish
             let externalId: string
             if (schedule.platform === "linkedin") {
+              // Extract organization ID from integration config
+              const config = integration.config
+                ? JSON.parse(integration.config)
+                : null
+              const organizationId = config?.organizationId
+
               const result = await publishToLinkedIn(
                 integration.accessToken,
                 schedule.contentDraft.content,
-                schedule.contentDraft.visualUrl || undefined
+                schedule.contentDraft.visualUrl || undefined,
+                organizationId
               )
               externalId = result.id
             } else if (schedule.platform === "twitter") {

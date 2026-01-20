@@ -76,10 +76,17 @@ export async function POST(req: Request) {
     let externalId: string
     try {
       if (schedule.platform === "linkedin") {
+        // Extract organization ID from integration config
+        const config = integration.config
+          ? JSON.parse(integration.config)
+          : null
+        const organizationId = config?.organizationId
+
         const result = await publishToLinkedIn(
           integration.accessToken,
           schedule.contentDraft.content,
-          schedule.contentDraft.visualUrl || undefined
+          schedule.contentDraft.visualUrl || undefined,
+          organizationId
         )
         externalId = result.id
       } else if (schedule.platform === "twitter") {

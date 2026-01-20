@@ -33,7 +33,8 @@ export interface LinkedInPost {
  */
 async function uploadLinkedInImage(
   accessToken: string,
-  imageUrl: string
+  imageUrl: string,
+  organizationId?: string
 ): Promise<string> {
   // Download image
   const imageResponse = await fetch(imageUrl)
@@ -41,6 +42,11 @@ async function uploadLinkedInImage(
     throw new Error("Failed to download image")
   }
   const imageBuffer = await imageResponse.arrayBuffer()
+
+  // If no organization ID provided, skip image upload
+  if (!organizationId) {
+    throw new Error("LinkedIn organization ID not configured. Publishing without image.")
+  }
 
   // Step 1: Register upload
   const registerResponse = await fetch(
@@ -54,7 +60,7 @@ async function uploadLinkedInImage(
       body: JSON.stringify({
         registerUploadRequest: {
           recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
-          owner: "urn:li:organization:YOUR_ORG_ID", // This needs to be set per user
+          owner: `urn:li:organization:${organizationId}`,
           serviceRelationships: [
             {
               relationshipType: "OWNER",
@@ -68,7 +74,7 @@ async function uploadLinkedInImage(
 
   if (!registerResponse.ok) {
     // If organization upload fails, try without image
-    throw new Error("LinkedIn image upload not configured. Publishing without image.")
+    throw new Error("LinkedIn image upload failed. Publishing without image.")
   }
 
   const registerData = await registerResponse.json()
@@ -100,13 +106,14 @@ async function uploadLinkedInImage(
 export async function publishToLinkedIn(
   accessToken: string,
   content: string,
-  imageUrl?: string
+  imageUrl?: string,
+  organizationId?: string
 ): Promise<{ id: string }> {
   let imageUrn: string | undefined
 
   if (imageUrl) {
     try {
-      imageUrn = await uploadLinkedInImage(accessToken, imageUrl)
+      imageUrn = await uploadLinkedInImage(accessToken, imageUrl, organizationId)
     } catch (error: any) {
       // Log error but continue without image
       console.warn("LinkedIn image upload failed:", error.message)

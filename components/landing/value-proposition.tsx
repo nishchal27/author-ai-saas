@@ -1,147 +1,119 @@
 "use client"
 
-import { Check, X } from "lucide-react"
+import { Check, X, ArrowRight } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-const comparisons = [
+const productExamples = [
   {
-    feature: "Content Source",
-    traditional: "Generic templates, AI-generated fluff",
-    founderOS: "Your real product activity",
+    product: "B2B SaaS for Developers",
+    recommendations: [
+      { text: "Twitter/X + GitHub", good: true },
+      { text: "Technical build logs", good: true },
+      { text: "LinkedIn sales posts", good: false },
+      { text: "Motivational content", good: false },
+    ],
+    summary: "Developers trust competence, not persuasion.",
   },
   {
-    feature: "Approval Process",
-    traditional: "Auto-publish, no control",
-    founderOS: "Human approval required",
+    product: "Online Course for Learners",
+    recommendations: [
+      { text: "YouTube + Twitter threads", good: true },
+      { text: "Teaching mini-lessons", good: true },
+      { text: "Corporate language", good: false },
+      { text: "Aggressive sales CTAs", good: false },
+    ],
+    summary: "Authority is built by teaching, not selling.",
   },
   {
-    feature: "Brand Voice",
-    traditional: "Generic, influencer-style",
-    founderOS: "Your authentic voice",
-  },
-  {
-    feature: "Metrics",
-    traditional: "Fake numbers, vanity metrics",
-    founderOS: "Real, honest tracking",
-  },
-  {
-    feature: "Time Investment",
-    traditional: "Hours of content creation",
-    founderOS: "Minutes of review",
-  },
-  {
-    feature: "Marketing Skills",
-    traditional: "Requires expertise",
-    founderOS: "Zero marketing knowledge needed",
+    product: "D2C Physical Product",
+    recommendations: [
+      { text: "Instagram + TikTok", good: true },
+      { text: "Lifestyle videos", good: true },
+      { text: "Long text explanations", good: false },
+      { text: "LinkedIn presence", good: false },
+    ],
+    summary: "Visual desire drives conversion.",
   },
 ]
 
 export function ValueProposition() {
   return (
-    <section className="py-20 lg:py-32 bg-gradient-to-br from-primary/5 via-transparent to-accent/5">
+    <section className="py-20 lg:py-32">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16 animate-fade-in">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
-            Why{" "}
-            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Founder OS
-            </span>
-            ?
+            The product determines the strategy
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Built for founders who want visibility without the marketing
-            complexity.
+            Different products need completely different approaches. 
+            AuthorAI figures out what works for yours.
           </p>
         </div>
 
-        <div className="max-w-6xl mx-auto">
-          <Card className="border-2 shadow-xl animate-scale-in">
-            <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10">
-              <CardTitle className="text-2xl text-center">
-                Founder OS vs Traditional Marketing Tools
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b bg-gray-50 dark:bg-gray-900">
-                      <th className="px-6 py-4 text-left font-semibold">
-                        Feature
-                      </th>
-                      <th className="px-6 py-4 text-center font-semibold text-red-600">
-                        Traditional Tools
-                      </th>
-                      <th className="px-6 py-4 text-center font-semibold text-primary">
-                        Founder OS
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {comparisons.map((comparison, index) => (
-                      <tr
-                        key={comparison.feature}
-                        className="border-b hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors animate-slide-up"
-                        style={{ animationDelay: `${index * 0.05}s` }}
-                      >
-                        <td className="px-6 py-4 font-medium">
-                          {comparison.feature}
-                        </td>
-                        <td className="px-6 py-4 text-center text-muted-foreground">
-                          <div className="flex items-center justify-center space-x-2">
-                            <X className="h-4 w-4 text-red-500" />
-                            <span>{comparison.traditional}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex items-center justify-center space-x-2">
-                            <Check className="h-4 w-4 text-green-500" />
-                            <span className="font-medium">
-                              {comparison.founderOS}
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Key Benefits */}
-        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {[
-            {
-              title: "Honest & Credible",
-              description:
-                "Content derived from real work, not fabricated success stories.",
-            },
-            {
-              title: "Time Efficient",
-              description:
-                "Turn hours of content creation into minutes of review.",
-            },
-            {
-              title: "Brand Consistent",
-              description:
-                "Your voice, your style, your brand - maintained across all content.",
-            },
-          ].map((benefit, index) => (
+        {/* Product Examples */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-16">
+          {productExamples.map((example, index) => (
             <Card
-              key={benefit.title}
-              className="border-2 hover:border-primary/50 transition-all duration-300 hover:shadow-lg animate-slide-up"
+              key={example.product}
+              className="border hover:shadow-lg transition-all duration-300 animate-slide-up"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
-              <CardHeader>
-                <CardTitle className="text-xl">{benefit.title}</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">{example.product}</CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">{benefit.description}</p>
+              <CardContent className="space-y-3">
+                <div className="space-y-2">
+                  {example.recommendations.map((rec, i) => (
+                    <div 
+                      key={i} 
+                      className={`flex items-center gap-2 text-sm ${rec.good ? "" : "line-through text-muted-foreground"}`}
+                    >
+                      {rec.good ? (
+                        <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
+                      ) : (
+                        <X className="h-4 w-4 text-red-500 flex-shrink-0" />
+                      )}
+                      <span>{rec.text}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-sm text-muted-foreground pt-2 border-t italic">
+                  {example.summary}
+                </p>
               </CardContent>
             </Card>
           ))}
+        </div>
+
+        {/* Core Value */}
+        <div className="max-w-3xl mx-auto">
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+            <CardContent className="p-8 text-center">
+              <h3 className="text-2xl font-bold mb-4">
+                Reduce decision fatigue. Get clarity.
+              </h3>
+              <div className="grid sm:grid-cols-3 gap-6 text-left">
+                <div>
+                  <div className="font-semibold mb-1">Confidence</div>
+                  <p className="text-sm text-muted-foreground">
+                    Know your marketing plan is right for your specific product.
+                  </p>
+                </div>
+                <div>
+                  <div className="font-semibold mb-1">Focus</div>
+                  <p className="text-sm text-muted-foreground">
+                    Stop spreading effort across platforms that won't work.
+                  </p>
+                </div>
+                <div>
+                  <div className="font-semibold mb-1">Structure</div>
+                  <p className="text-sm text-muted-foreground">
+                    Marketing feels intentional and manageable, not chaotic.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </section>
