@@ -24,6 +24,14 @@ CLERK_SECRET_KEY=sk_test_...
 ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
 
+# Inngest (for workflow automation)
+# Create account at https://inngest.com
+# Functions auto-register when deployed
+# No additional config needed for basic use
+
+# Cron Secret (for legacy cron endpoint)
+CRON_SECRET=your-secret-key-here
+
 # Next.js
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
