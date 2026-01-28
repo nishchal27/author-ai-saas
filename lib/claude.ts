@@ -1,12 +1,36 @@
 import Anthropic from "@anthropic-ai/sdk"
+import OpenAI from "openai"
 
-if (!process.env.ANTHROPIC_API_KEY) {
-  throw new Error("ANTHROPIC_API_KEY is not set")
+// Determine which API to use based on available keys
+const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY
+const hasOpenAIKey = !!process.env.OPENAI_API_KEY
+
+if (!hasAnthropicKey && !hasOpenAIKey) {
+  throw new Error("Either ANTHROPIC_API_KEY or OPENAI_API_KEY must be set")
 }
 
-export const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-})
+// Initialize clients
+let anthropicClient: Anthropic | null = null
+let openaiClient: OpenAI | null = null
+
+if (hasAnthropicKey) {
+  anthropicClient = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  })
+}
+
+if (hasOpenAIKey) {
+  openaiClient = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+  })
+}
+
+// Determine which provider to use (prefer Anthropic if both are available)
+const useAnthropic = hasAnthropicKey
+const useOpenAI = !hasAnthropicKey && hasOpenAIKey
+
+// Export the active client for backward compatibility (strategy.ts uses this)
+export const anthropic = anthropicClient
 
 export interface InsightExtraction {
   coreProblem: string
@@ -58,33 +82,97 @@ export interface StrategyContext {
 }
 
 /**
- * Determines which Claude model to use based on user tier
- * Premium tier uses Opus 4.5, Standard tier uses Sonnet 4.5
+ * Maps user tier to model name for the active provider
  */
 function getModelForTier(userTier: "standard" | "premium" = "standard"): string {
-  return userTier === "premium" 
-    ? "claude-3-5-opus-20241022"
-    : "claude-3-5-sonnet-20241022"
+  if (useAnthropic) {
+    return userTier === "premium" 
+      ? "claude-3-5-opus-20241022"
+      : "claude-3-5-sonnet-20241022"
+  } else if (useOpenAI) {
+    // Map to OpenAI models: premium = GPT-4 Turbo, standard = GPT-4o
+    // gpt-4o is the latest and best model, using it for both tiers
+    return "gpt-4o"
+  }
+  throw new Error("No AI provider available")
 }
 
 /**
- * Determines which Claude model to use based on content type and user tier
- * Blog content always uses Opus 4.5 for maximum quality
- * Premium tier uses Opus 4.5, Standard tier uses Sonnet 4.5 for other content
+ * Maps content type and user tier to model name
+ * Blog content always uses the premium model for maximum quality
  */
 function getModelForContent(
   contentType: "post" | "blog" | "carousel" | "thread" | "caption",
   userTier: "standard" | "premium" = "standard"
 ): string {
-  // Blog content always uses Opus for maximum quality
-  if (contentType === "blog") {
-    return "claude-3-5-opus-20241022"
+  if (useAnthropic) {
+    // Blog content always uses Opus for maximum quality
+    if (contentType === "blog") {
+      return "claude-3-5-opus-20241022"
+    }
+    // Premium tier uses Opus, standard tier uses Sonnet
+    return userTier === "premium"
+      ? "claude-3-5-opus-20241022"
+      : "claude-3-5-sonnet-20241022"
+  } else if (useOpenAI) {
+    // Blog content and premium tier use GPT-4o (best model)
+    // Standard tier also uses GPT-4o (cost-effective and high quality)
+    return "gpt-4o"
   }
-  
-  // Premium tier uses Opus, standard tier uses Sonnet
-  return userTier === "premium"
-    ? "claude-3-5-opus-20241022"
-    : "claude-3-5-sonnet-20241022"
+  throw new Error("No AI provider available")
+}
+
+/**
+ * Unified function to call either Anthropic or OpenAI
+ * Exported for use in other modules like strategy.ts
+ */
+export async function callAI(
+  systemPrompt: string,
+  userPrompt: string,
+  model: string,
+  maxTokens: number
+): Promise<string> {
+  if (useAnthropic && anthropicClient) {
+    const message = await anthropicClient.messages.create({
+      model,
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: userPrompt,
+        },
+      ],
+    })
+
+    const content = message.content[0]
+    if (content.type !== "text") {
+      throw new Error("Unexpected response type from AI")
+    }
+    return content.text
+  } else if (useOpenAI && openaiClient) {
+    const completion = await openaiClient.chat.completions.create({
+      model,
+      max_tokens: maxTokens,
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt,
+        },
+        {
+          role: "user",
+          content: userPrompt,
+        },
+      ],
+    })
+
+    const content = completion.choices[0]?.message?.content
+    if (!content) {
+      throw new Error("No content in AI response")
+    }
+    return content
+  }
+  throw new Error("No AI provider available")
 }
 
 /**
@@ -155,27 +243,12 @@ Extract the core insight in JSON format.`
 
   const model = getModelForTier(userTier)
   
-  const message = await anthropic.messages.create({
-    model,
-    max_tokens: 2000,
-    system: systemPrompt,
-    messages: [
-      {
-        role: "user",
-        content: userPrompt,
-      },
-    ],
-  })
-
-  const content = message.content[0]
-  if (content.type !== "text") {
-    throw new Error("Unexpected response type from Claude")
-  }
+  const responseText = await callAI(systemPrompt, userPrompt, model, 2000)
 
   // Extract JSON from response
-  const jsonMatch = content.text.match(/\{[\s\S]*\}/)
+  const jsonMatch = responseText.match(/\{[\s\S]*\}/)
   if (!jsonMatch) {
-    throw new Error("No JSON found in Claude response")
+    throw new Error("No JSON found in AI response")
   }
 
   const insight = JSON.parse(jsonMatch[0]) as InsightExtraction
@@ -296,26 +369,11 @@ Generate the content in JSON format. Remember to follow the tone and anti-patter
 
   const model = getModelForContent(type, userTier)
   
-  const message = await anthropic.messages.create({
-    model,
-    max_tokens: 4000,
-    system: systemPrompt,
-    messages: [
-      {
-        role: "user",
-        content: userPrompt,
-      },
-    ],
-  })
+  const responseText = await callAI(systemPrompt, userPrompt, model, 4000)
 
-  const content = message.content[0]
-  if (content.type !== "text") {
-    throw new Error("Unexpected response type from Claude")
-  }
-
-  const jsonMatch = content.text.match(/\{[\s\S]*\}/)
+  const jsonMatch = responseText.match(/\{[\s\S]*\}/)
   if (!jsonMatch) {
-    throw new Error("No JSON found in Claude response")
+    throw new Error("No JSON found in AI response")
   }
 
   const draft = JSON.parse(jsonMatch[0]) as ContentDraft
