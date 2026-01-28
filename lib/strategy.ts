@@ -13,7 +13,7 @@
  * 3. Output is opinionated, conservative, and explainable
  */
 
-import { anthropic } from "./claude"
+import { callAI } from "./claude"
 
 // ============================================
 // PRODUCT PROFILE TYPES
@@ -391,9 +391,17 @@ export async function generateMarketingStrategy(
   const refinedPattern = refineForAudience(basePattern, product.audience, product.type)
   
   // Step 3: Use AI to generate human-readable explanations and fill gaps
-  const model = tier === "premium" 
-    ? "claude-sonnet-4-20250514" 
-    : "claude-sonnet-4-20250514"
+  // Determine model based on available provider
+  const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY
+  const hasOpenAIKey = !!process.env.OPENAI_API_KEY
+  const useAnthropic = hasAnthropicKey
+  const useOpenAI = !hasAnthropicKey && hasOpenAIKey
+  
+  const model = useAnthropic
+    ? (tier === "premium" ? "claude-3-5-opus-20241022" : "claude-3-5-sonnet-20241022")
+    : useOpenAI
+    ? "gpt-4o" // Using gpt-4o for both tiers (best and cost-effective)
+    : "gpt-4o" // fallback
   
   const systemPrompt = `You are a strategic marketing advisor for B2B founders. 
 Your role is to provide opinionated, conservative, and explainable marketing recommendations.
@@ -453,22 +461,10 @@ Return ONLY valid JSON matching this structure:
 }`
 
   try {
-    const response = await anthropic.messages.create({
-      model,
-      max_tokens: 3000,
-      messages: [
-        { role: "user", content: userPrompt }
-      ],
-      system: systemPrompt,
-    })
-
-    const content = response.content[0]
-    if (content.type !== "text") {
-      throw new Error("Unexpected response type")
-    }
+    const responseText = await callAI(systemPrompt, userPrompt, model, 3000)
 
     // Parse JSON from response
-    const jsonMatch = content.text.match(/\{[\s\S]*\}/)
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
       throw new Error("No JSON found in response")
     }
