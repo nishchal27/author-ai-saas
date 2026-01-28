@@ -53,9 +53,9 @@ const features = [
   },
   {
     icon: FileText,
-    title: "Strategy → Execution",
+    title: "Strategy-Guided Content",
     description:
-      "Once strategy is set, generate content that matches. Posts, blogs, and visuals aligned with your product's needs.",
+      "Content generation follows your product's strategy automatically. Get warnings if you use non-recommended platforms. Posts, blogs, and visuals match your tone and avoid anti-patterns.",
     color: "text-teal-600",
     bgColor: "bg-teal-50 dark:bg-teal-950",
   },

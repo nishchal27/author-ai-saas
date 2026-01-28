@@ -80,6 +80,7 @@ export default function SettingsPage() {
   const [githubToken, setGithubToken] = useState("")
   const [githubRepo, setGithubRepo] = useState("")
   const [linkedinToken, setLinkedinToken] = useState("")
+  const [linkedinOrgId, setLinkedinOrgId] = useState("")
   const [twitterToken, setTwitterToken] = useState("")
   const [selectedRepo, setSelectedRepo] = useState("")
   const [userTier, setUserTier] = useState<"standard" | "premium">("standard")
