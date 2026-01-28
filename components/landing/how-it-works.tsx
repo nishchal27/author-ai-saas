@@ -1,39 +1,47 @@
 "use client"
 
-import { ArrowRight, GitBranch, Sparkles, FileText, Calendar } from "lucide-react"
+import { ArrowRight, Target, GitBranch, Sparkles, FileText, Calendar } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 
 const steps = [
   {
     number: "01",
-    icon: GitBranch,
-    title: "Track Your Activity",
+    icon: Target,
+    title: "Add Your Product & Get Strategy",
     description:
-      "Connect GitHub or add activities manually. Every commit, PR, and update is captured.",
-    color: "from-blue-500 to-blue-600",
+      "Tell us about your product — type, audience, stage. We generate a custom marketing strategy that tells you which platforms to use and what to skip.",
+    color: "from-primary to-primary/80",
   },
   {
     number: "02",
-    icon: Sparkles,
-    title: "Extract Insights",
+    icon: GitBranch,
+    title: "Track Your Activity",
     description:
-      "AI analyzes your work and extracts meaningful insights. Problem → Solution framing that matters.",
-    color: "from-purple-500 to-purple-600",
+      "Connect GitHub or add activities manually. Every commit, PR, and update is captured and linked to your product.",
+    color: "from-blue-500 to-blue-600",
   },
   {
     number: "03",
-    icon: FileText,
-    title: "Generate Content",
+    icon: Sparkles,
+    title: "Extract Insights",
     description:
-      "Create posts, blogs, threads, and visuals. Platform-optimized and brand-consistent.",
-    color: "from-green-500 to-green-600",
+      "AI analyzes your work with your product context. Insights are framed for your specific audience and industry.",
+    color: "from-purple-500 to-purple-600",
   },
   {
     number: "04",
+    icon: FileText,
+    title: "Generate Strategy-Guided Content",
+    description:
+      "Create posts, blogs, threads, and visuals that follow your product's strategy. Content matches your tone, platforms, and avoids anti-patterns.",
+    color: "from-green-500 to-green-600",
+  },
+  {
+    number: "05",
     icon: Calendar,
     title: "Review & Publish",
     description:
-      "Review, edit, and approve everything. Schedule or publish immediately. You're in control.",
+      "Review with strategy alignment warnings, edit, and approve. Schedule or publish immediately. Automated publishing handles the rest.",
     color: "from-orange-500 to-orange-600",
   },
 ]

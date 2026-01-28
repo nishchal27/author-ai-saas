@@ -12,6 +12,8 @@ const plans = [
     period: "/month",
     description: "Perfect for solo founders getting started",
     features: [
+      "Product strategy generation",
+      "1 product",
       "50 activities per month",
       "Unlimited insights",
       "100 content drafts",
@@ -27,11 +29,14 @@ const plans = [
     period: "/month",
     description: "For founders who publish consistently",
     features: [
+      "Product strategy generation",
+      "Unlimited products",
       "Unlimited activities",
       "Unlimited insights",
       "Unlimited content drafts",
       "All social platforms",
       "Advanced analytics",
+      "Strategy-guided content",
       "Priority support",
       "Custom brand voice",
       "API access",
