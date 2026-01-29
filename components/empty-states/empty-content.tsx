@@ -10,13 +10,13 @@ export function EmptyContent() {
     <Card>
       <CardContent className="py-12 text-center">
         <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-        <h3 className="text-lg font-semibold mb-2">No content drafts yet</h3>
+        <h3 className="text-lg font-semibold mb-2">No drafts yet</h3>
         <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-          Generate content from your insights. You can create posts, blogs, carousels, and more. All content requires your approval before publishing.
+          Create one from your recommended angle on Home.
         </p>
         <Button asChild variant="outline">
-          <Link href="/dashboard/insights">
-            Generate from Insights
+          <Link href="/dashboard">
+            Go to Home
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
         </Button>

@@ -23,16 +23,23 @@ export async function POST(req: Request) {
     let visualPrompt = prompt
     let visualStyle = style
 
-    // If draftId provided, fetch draft and use its visual prompt
+    let productContext: { productName?: string; audience?: string } | undefined
+
     if (draftId) {
       const user = await db.user.findFirst({
         where: { clerkId: userId },
       })
+      if (!user) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 })
+      }
 
       const draft = await db.contentDraft.findFirst({
         where: {
           id: draftId,
-          userId: user!.id,
+          userId: user.id,
+        },
+        include: {
+          product: { select: { name: true, audience: true, audienceDetail: true } },
         },
       })
 
@@ -49,10 +56,23 @@ export async function POST(req: Request) {
         )
       }
 
-      // Get user visual style preferences
-      if (user?.visualStyle) {
-        const visualPrefs = JSON.parse(user.visualStyle)
-        visualStyle = visualPrefs.style || style
+      if (draft.product) {
+        productContext = {
+          productName: draft.product.name,
+          audience: draft.product.audience?.replace(/_/g, " ") || undefined,
+          audienceDetail: draft.product.audienceDetail ?? undefined,
+        }
+      }
+
+      // User visual style preferences (if present on user)
+      const userWithStyle = user as { visualStyle?: string }
+      if (userWithStyle?.visualStyle) {
+        try {
+          const visualPrefs = JSON.parse(userWithStyle.visualStyle)
+          visualStyle = visualPrefs.style || style
+        } catch {
+          // ignore
+        }
       }
     }
 
@@ -63,15 +83,9 @@ export async function POST(req: Request) {
       )
     }
 
-    // Generate visual
-    const imageUrl = await generateVisual(visualPrompt, visualStyle)
+    const imageUrl = await generateVisual(visualPrompt, visualStyle, productContext)
 
-    // Update draft if draftId provided
     if (draftId) {
-      const user = await db.user.findFirst({
-        where: { clerkId: userId },
-      })
-
       await db.contentDraft.update({
         where: { id: draftId },
         data: { visualUrl: imageUrl },

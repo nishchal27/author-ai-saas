@@ -56,7 +56,8 @@ export interface ProductProfile {
   name: string
   type: ProductType
   industry: string
-  audience: AudienceType
+  audience: string  // Predefined code (e.g. developers, smb_owners) or custom text
+  audienceDetail?: string  // Optional: "who exactly?" e.g. college students trying to lose weight
   stage: ProductStage
   salesMotion: SalesMotion
   description?: string
@@ -304,11 +305,20 @@ const STRATEGY_PATTERNS: Record<ProductType, Partial<MarketingStrategyOutput>> =
 // AUDIENCE-SPECIFIC REFINEMENTS
 // ============================================
 
+const KNOWN_AUDIENCE_CODES: AudienceType[] = [
+  "developers", "smb_owners", "consumers", "professionals", "learners", "enterprise", "creators"
+]
+
 function refineForAudience(
   baseStrategy: Partial<MarketingStrategyOutput>,
-  audience: AudienceType,
+  audience: string,
   productType: ProductType
 ): Partial<MarketingStrategyOutput> {
+  // Custom or unknown audience: no heuristic refinement; AI will use full text
+  if (!KNOWN_AUDIENCE_CODES.includes(audience as AudienceType)) {
+    return { ...baseStrategy }
+  }
+
   const refined = { ...baseStrategy }
   
   // Developers have specific needs
@@ -431,6 +441,7 @@ The founder should feel "this tool understands my product better than I expected
 - Type: ${product.type}
 - Industry: ${product.industry}
 - Audience: ${product.audience}
+${product.audienceDetail ? `- Specific target: ${product.audienceDetail}` : ""}
 - Stage: ${product.stage}
 - Sales Motion: ${product.salesMotion}
 ${product.description ? `- Description: ${product.description}` : ""}

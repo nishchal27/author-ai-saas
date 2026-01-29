@@ -194,28 +194,31 @@ export default function ContentPage() {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Content Drafts</h1>
+        <h1 className="text-3xl font-bold">Content</h1>
         <p className="text-muted-foreground mt-2">
-          Review and approve your generated content
+          Review your drafts before posting.
         </p>
       </div>
 
-      <div className="mb-6">
-        <SearchFilter
-          searchValue={searchQuery}
-          onSearchChange={setSearchQuery}
-          filterValue={statusFilter}
-          onFilterChange={setStatusFilter}
-          filterOptions={[
-            { value: "draft", label: "Draft" },
-            { value: "approved", label: "Approved" },
-            { value: "scheduled", label: "Scheduled" },
-            { value: "published", label: "Published" },
-            { value: "rejected", label: "Rejected" },
-          ]}
-          placeholder="Search content..."
-        />
-      </div>
+      {allDrafts.length > 5 && (
+        <div className="mb-4">
+          <SearchFilter
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+            filterValue={statusFilter}
+            onFilterChange={setStatusFilter}
+            filterOptions={[
+              { value: "all", label: "All" },
+              { value: "draft", label: "Draft" },
+              { value: "approved", label: "Approved" },
+              { value: "scheduled", label: "Scheduled" },
+              { value: "published", label: "Published" },
+              { value: "rejected", label: "Rejected" },
+            ]}
+            placeholder="Search content..."
+          />
+        </div>
+      )}
 
       {isLoading ? (
         <div className="grid gap-6">
@@ -354,8 +357,13 @@ export default function ContentPage() {
                         disabled={visualMutation.isPending}
                       >
                         <ImageIcon className="mr-2 h-4 w-4" />
-                        Generate Visual
+                        Generate image
                       </Button>
+                    )}
+                    {!draft.visualPrompt && !draft.visualUrl && (
+                      <p className="text-sm text-muted-foreground">
+                        No image suggested for this post.
+                      </p>
                     )}
                     <div className="flex gap-2 pt-4 border-t">
                       <Button

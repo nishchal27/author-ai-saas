@@ -37,14 +37,14 @@ function NoProductState() {
       <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
         <Package className="h-8 w-8 text-primary" />
       </div>
-      <h2 className="text-2xl font-bold mb-2">No Product Yet</h2>
+      <h2 className="text-2xl font-bold mb-2">No product yet</h2>
       <p className="text-muted-foreground max-w-md mb-6">
-        Add your product to generate a personalized marketing strategy.
+        Add your product so we can recommend what to post.
       </p>
       <Button asChild>
         <Link href="/dashboard">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Go to Dashboard
+          Go to Home
         </Link>
       </Button>
     </div>
@@ -65,8 +65,8 @@ export default function StrategyPage() {
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold">Marketing Strategy</h1>
-          <p className="text-muted-foreground mt-2">Loading your product strategy...</p>
+          <h1 className="text-3xl font-bold">Strategy</h1>
+          <p className="text-muted-foreground mt-2">Loading your strategy...</p>
         </div>
         <StrategySkeleton />
       </div>
@@ -98,16 +98,16 @@ export default function StrategyPage() {
         <div>
           <div className="flex items-center gap-3 mb-2">
             <Target className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Marketing Strategy</h1>
+            <h1 className="text-3xl font-bold">Strategy</h1>
           </div>
           <p className="text-muted-foreground">
-            Personalized recommendations for <span className="font-medium text-foreground">{activeProduct.name}</span>
+            Recommendations for <span className="font-medium text-foreground">{activeProduct.name}</span>
           </p>
         </div>
         <Button asChild variant="outline">
           <Link href="/dashboard">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Dashboard
+            Back to Home
           </Link>
         </Button>
       </div>
@@ -130,7 +130,10 @@ export default function StrategyPage() {
             </div>
             <div>
               <div className="text-muted-foreground">Audience</div>
-              <div className="font-medium capitalize">{activeProduct.audience?.replace("_", " ")}</div>
+              <div className="font-medium capitalize">{activeProduct.audience?.replace(/_/g, " ")}</div>
+              {activeProduct.audienceDetail && (
+                <div className="text-xs text-muted-foreground mt-1">Who exactly: {activeProduct.audienceDetail}</div>
+              )}
             </div>
             <div>
               <div className="text-muted-foreground">Stage</div>

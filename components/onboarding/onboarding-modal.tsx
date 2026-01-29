@@ -19,31 +19,31 @@ interface OnboardingStep {
 
 const steps: OnboardingStep[] = [
   {
-    title: "Welcome to Founder OS",
-    description: "Turn your real product work into trust-building content. No marketing experience needed.",
+    title: "Welcome to AuthorAI",
+    description: "We'll help you decide what to post next and why. One step at a time.",
     icon: <Activity className="h-8 w-8" />,
   },
   {
-    title: "Track Your Activity",
-    description: "Add activities manually or connect GitHub to automatically track commits and PRs.",
+    title: "Share a story",
+    description: "Tell us what you're working on. We'll turn it into one clear post angle.",
     icon: <Activity className="h-8 w-8" />,
     action: {
-      label: "Add Activity",
+      label: "Share a story",
       href: "/dashboard/activities/new",
     },
   },
   {
-    title: "Extract Insights",
-    description: "AI extracts meaningful insights from your work - problem, solution, and impact.",
+    title: "Get your next step",
+    description: "Home always shows the one thing to do next: get the angle, create a post, or review your draft.",
     icon: <Sparkles className="h-8 w-8" />,
     action: {
-      label: "View Insights",
-      href: "/dashboard/insights",
+      label: "Go to Home",
+      href: "/dashboard",
     },
   },
   {
-    title: "Generate Content",
-    description: "Create posts, blogs, and carousels from insights. All content requires your approval.",
+    title: "Review and post",
+    description: "Review your drafts, then approve or edit. Schedule when you're ready.",
     icon: <FileText className="h-8 w-8" />,
     action: {
       label: "View Content",
@@ -51,12 +51,12 @@ const steps: OnboardingStep[] = [
     },
   },
   {
-    title: "Schedule & Publish",
-    description: "Schedule content across platforms and track performance with analytics.",
+    title: "You're set",
+    description: "Calendar and analytics are under More when you need them.",
     icon: <Calendar className="h-8 w-8" />,
     action: {
-      label: "View Calendar",
-      href: "/dashboard/calendar",
+      label: "Get started",
+      href: "/dashboard",
     },
   },
 ]
