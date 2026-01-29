@@ -45,7 +45,8 @@ model Product {
   // Product Classification (determines strategy)
   type        String   // "saas", "course", "coaching", "physical", "event", "api", "service", "ngo"
   industry    String   // e.g., "devtools", "education", "finance", "lifestyle", "enterprise"
-  audience    String   // e.g., "developers", "smb_owners", "consumers", "professionals"
+  audience    String   // e.g., "developers", "smb_owners", "consumers", or custom text
+  audienceDetail String?  @db.Text  // Optional: "who exactly?" e.g. college students trying to lose weight
   stage       String   // "idea", "building", "launched", "growing", "mature"
   salesMotion String   // "self_serve", "demo", "creator_led", "enterprise", "impulse"
   

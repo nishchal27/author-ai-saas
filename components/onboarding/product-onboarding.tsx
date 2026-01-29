@@ -45,6 +45,8 @@ interface ProductFormData {
   type: string
   industry: string
   audience: string
+  customAudienceText: string
+  audienceDetail: string
   stage: string
   salesMotion: string
   description: string
@@ -80,6 +82,7 @@ const AUDIENCE_TYPES = [
   { value: "learners", label: "Learners", description: "Students or career switchers" },
   { value: "enterprise", label: "Enterprise Teams", description: "Corporate buyers" },
   { value: "creators", label: "Creators", description: "Content creators" },
+  { value: "custom", label: "Other", description: "My audience isn't listed" },
 ]
 
 const PRODUCT_STAGES = [
@@ -171,6 +174,8 @@ export function ProductOnboarding({ open, onOpenChange, onComplete }: ProductOnb
     type: "",
     industry: "",
     audience: "",
+    customAudienceText: "",
+    audienceDetail: "",
     stage: "",
     salesMotion: "",
     description: "",
@@ -182,10 +187,22 @@ export function ProductOnboarding({ open, onOpenChange, onComplete }: ProductOnb
   // Create product mutation
   const createProduct = useMutation({
     mutationFn: async (data: ProductFormData) => {
+      const audience = data.audience === "custom" ? data.customAudienceText.trim() : data.audience
+      const payload = {
+        name: data.name,
+        type: data.type,
+        industry: data.industry,
+        audience,
+        audienceDetail: data.audienceDetail.trim() || undefined,
+        stage: data.stage,
+        salesMotion: data.salesMotion,
+        description: data.description || undefined,
+        website: data.website || undefined,
+      }
       const res = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error("Failed to create product")
       return res.json()
@@ -218,7 +235,9 @@ export function ProductOnboarding({ open, onOpenChange, onComplete }: ProductOnb
     switch (step) {
       case 0: return formData.name.trim().length > 0
       case 1: return formData.type !== ""
-      case 2: return formData.audience !== ""
+      case 2:
+        if (formData.audience === "custom") return formData.customAudienceText.trim().length > 0
+        return formData.audience !== ""
       case 3: return formData.stage !== "" && formData.salesMotion !== ""
       case 4: return true // Description is optional
       default: return false
@@ -314,7 +333,7 @@ export function ProductOnboarding({ open, onOpenChange, onComplete }: ProductOnb
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="grid grid-cols-2 gap-3 flex-1">
+              <div className="grid grid-cols-2 gap-3">
                 {AUDIENCE_TYPES.map((audience) => (
                   <OptionCard
                     key={audience.value}
@@ -324,6 +343,31 @@ export function ProductOnboarding({ open, onOpenChange, onComplete }: ProductOnb
                     description={audience.description}
                   />
                 ))}
+              </div>
+
+              {formData.audience === "custom" && (
+                <div className="mt-4 space-y-2">
+                  <Label htmlFor="customAudience">Describe your audience</Label>
+                  <Input
+                    id="customAudience"
+                    placeholder="e.g. Trainers, coaches, NGOs, communities"
+                    value={formData.customAudienceText}
+                    onChange={(e) => setFormData({ ...formData, customAudienceText: e.target.value })}
+                  />
+                </div>
+              )}
+
+              <div className="mt-4 space-y-2">
+                <Label htmlFor="audienceDetail">Who exactly? (optional)</Label>
+                <Input
+                  id="audienceDetail"
+                  placeholder="e.g. College students trying to lose weight or quit sugar"
+                  value={formData.audienceDetail}
+                  onChange={(e) => setFormData({ ...formData, audienceDetail: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Narrow down your target if you have a specific segment in mind.
+                </p>
               </div>
             </div>
           )}
@@ -425,7 +469,8 @@ export function ProductOnboarding({ open, onOpenChange, onComplete }: ProductOnb
                 <div className="text-sm font-medium mb-2">Your Product Profile</div>
                 <div className="text-sm text-muted-foreground space-y-1">
                   <p><span className="font-medium text-foreground">{formData.name}</span> - {PRODUCT_TYPES.find(t => t.value === formData.type)?.label}</p>
-                  <p>For: {AUDIENCE_TYPES.find(a => a.value === formData.audience)?.label}</p>
+                  <p>For: {formData.audience === "custom" ? formData.customAudienceText || "—" : (AUDIENCE_TYPES.find(a => a.value === formData.audience)?.label ?? formData.audience)}</p>
+                  {formData.audienceDetail && <p>Who exactly: {formData.audienceDetail}</p>}
                   <p>Stage: {PRODUCT_STAGES.find(s => s.value === formData.stage)?.label} • {SALES_MOTIONS.find(m => m.value === formData.salesMotion)?.label}</p>
                 </div>
               </div>

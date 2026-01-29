@@ -57,6 +57,7 @@ export async function POST(req: Request) {
           audience: product.audience,
           stage: product.stage,
           description: product.description || undefined,
+          audienceDetail: product.audienceDetail ?? undefined,
         }
       }
     }

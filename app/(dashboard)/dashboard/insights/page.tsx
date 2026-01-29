@@ -83,9 +83,9 @@ export default function InsightsPage() {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Insights</h1>
+        <h1 className="text-3xl font-bold">Angles</h1>
         <p className="text-muted-foreground mt-2">
-          Core insights extracted from your activities
+          Post angles from your stories. Use Home to see the one we recommend next.
         </p>
       </div>
 
@@ -96,11 +96,12 @@ export default function InsightsPage() {
           filterValue={statusFilter}
           onFilterChange={setStatusFilter}
           filterOptions={[
+            { value: "all", label: "All" },
             { value: "draft", label: "Draft" },
             { value: "approved", label: "Approved" },
             { value: "rejected", label: "Rejected" },
           ]}
-          placeholder="Search insights..."
+          placeholder="Search angles..."
         />
       </div>
 
@@ -117,7 +118,7 @@ export default function InsightsPage() {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
-                    <CardTitle>Insight</CardTitle>
+                    <CardTitle>Angle</CardTitle>
                     <CardDescription>
                       {format(new Date(insight.createdAt), "MMM d, yyyy")}
                     </CardDescription>
@@ -188,7 +189,7 @@ export default function InsightsPage() {
           {filteredInsights.length === 0 && allInsights.length > 0 && (
             <Card>
               <CardContent className="py-12 text-center">
-                <p className="text-muted-foreground">No insights match your filters</p>
+                <p className="text-muted-foreground">No angles match your filters</p>
                 <Button
                   variant="outline"
                   className="mt-4"

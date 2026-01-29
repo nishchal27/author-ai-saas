@@ -56,6 +56,7 @@ export interface ProductContext {
   audience: string
   stage: string
   description?: string
+  audienceDetail?: string  // Optional: "who exactly?" e.g. college students trying to lose weight
 }
 
 // Marketing strategy context
@@ -200,6 +201,7 @@ PRODUCT CONTEXT (use this to frame insights appropriately):
 - Type: ${productContext.type}
 - Industry: ${productContext.industry}
 - Target Audience: ${productContext.audience}
+${productContext.audienceDetail ? `- Specific target: ${productContext.audienceDetail}` : ""}
 - Stage: ${productContext.stage}
 ${productContext.description ? `- Description: ${productContext.description}` : ""}
 
@@ -311,6 +313,7 @@ PRODUCT CONTEXT:
 - Type: ${productContext.type}
 - Industry: ${productContext.industry}  
 - Target Audience: ${productContext.audience}
+${productContext.audienceDetail ? `- Specific target: ${productContext.audienceDetail}` : ""}
 - Stage: ${productContext.stage}
 ${productContext.description ? `- Description: ${productContext.description}` : ""}
 ` : ""
@@ -323,7 +326,7 @@ CORE PRINCIPLES:
 - Focus on value and signal, not fluff
 - Match the product's marketing strategy when provided
 - Include a clear, non-pushy CTA when appropriate
-- For visual content, provide a visual prompt that describes what image would complement the text
+- Only provide visualPrompt if a single image would materially reinforce the message for this audience (e.g. before/after, simple diagram, product screenshot concept). If the post works better as text-only, omit visualPrompt or set it to null. Never use generic metaphors (snails, cars, hourglasses) unless the angle is explicitly about speed or time.
 
 CRITICAL: If a marketing strategy is provided, you MUST follow its tone, style, and anti-patterns. The strategy was specifically designed for this product.
 
@@ -339,7 +342,7 @@ Output must be valid JSON:
   "title": "Optional title",
   "content": "The main content",
   "cta": "Optional call-to-action",
-  "visualPrompt": "Description of visual to generate (for carousels/images)"
+  "visualPrompt": "Optional. Only if an image would materially reinforce the message; otherwise null."
 }`
 
   const platformGuidance: Record<string, string> = {
@@ -351,6 +354,7 @@ Output must be valid JSON:
     hackernews: "Technical, substantive, no marketing speak.",
   }
 
+  const oneLiner = insight.solution || insight.coreProblem
   const userPrompt = `Generate ${type} content${platform ? ` for ${platform}` : ""} from this insight:
 
 INSIGHT:
@@ -360,6 +364,7 @@ INSIGHT:
 - Why it matters: ${insight.whyMatters}
 ${insight.impact ? `- Impact: ${insight.impact}` : ""}
 ${insight.themes ? `- Themes: ${insight.themes.join(", ")}` : ""}
+${productContext ? `\nProduct: ${productContext.name}. Audience: ${productContext.audience}.${productContext.audienceDetail ? ` Specific target: ${productContext.audienceDetail}.` : ""} One-line angle: ${oneLiner}.` : ""}
 ${productGuidance}
 ${strategyGuidance}
 ${platform && platformGuidance[platform] ? `\nPLATFORM GUIDANCE: ${platformGuidance[platform]}` : ""}

@@ -10,13 +10,13 @@ export function EmptyInsights() {
     <Card>
       <CardContent className="py-12 text-center">
         <Sparkles className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-        <h3 className="text-lg font-semibold mb-2">No insights yet</h3>
+        <h3 className="text-lg font-semibold mb-2">No angles yet</h3>
         <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-          Extract insights from your activities to discover meaningful content opportunities. AI will help identify problems, solutions, and impact.
+          Share a story on Home to get your first post angle.
         </p>
         <Button asChild variant="outline">
-          <Link href="/dashboard/activities">
-            View Activities
+          <Link href="/dashboard">
+            Go to Home
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
         </Button>

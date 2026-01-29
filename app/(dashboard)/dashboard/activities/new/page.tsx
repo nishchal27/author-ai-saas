@@ -39,12 +39,13 @@ export default function NewActivityPage() {
     mutationFn: createActivity,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["activities"] })
+      queryClient.invalidateQueries({ queryKey: ["guide-next"] })
       toast({
-        title: "Activity created",
-        description: "You can now extract insights from this activity.",
+        title: "Story saved",
+        description: "Go to Home to get the angle and create a post.",
         variant: "success",
       })
-      router.push("/dashboard/activities")
+      router.push("/dashboard")
     },
     onError: (error: any) => {
       toast({
@@ -63,26 +64,26 @@ export default function NewActivityPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">New Activity</h1>
+        <h1 className="text-3xl font-bold">Share a story</h1>
         <p className="text-muted-foreground mt-2">
-          Tell us what you've been working on. We'll help turn it into content.
+          What do you want to share with your audience? We'll help you turn it into one clear post angle.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Activity Details</CardTitle>
+          <CardTitle>Your story</CardTitle>
           <CardDescription>
-            Describe what changed, who it helps, and why it matters.
+            What's the story? Who cares and why?
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="title">What changed? *</Label>
+              <Label htmlFor="title">What do you want to share? *</Label>
               <Input
                 id="title"
-                placeholder="e.g., Added dark mode support"
+                placeholder="e.g., We're optimizing performance and sharing before/after"
                 value={formData.title}
                 onChange={(e) =>
                   setFormData({ ...formData, title: e.target.value })
@@ -92,10 +93,10 @@ export default function NewActivityPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description (optional)</Label>
+              <Label htmlFor="description">More details (optional)</Label>
               <Textarea
                 id="description"
-                placeholder="Add more details about this change..."
+                placeholder="Add context, who it helps, or why it matters..."
                 value={formData.description}
                 onChange={(e) =>
                   setFormData({ ...formData, description: e.target.value })
@@ -107,12 +108,12 @@ export default function NewActivityPage() {
             <div className="flex gap-2">
               <Button type="submit" disabled={mutation.isPending}>
                 {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Activity
+                Save story
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.back()}
+                onClick={() => router.push("/dashboard")}
               >
                 Cancel
               </Button>

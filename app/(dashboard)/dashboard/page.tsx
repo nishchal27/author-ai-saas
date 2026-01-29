@@ -1,25 +1,16 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { 
-  Activity, 
-  Plus, 
-  Sparkles, 
-  Target, 
-  Check, 
-  X, 
-  Package,
-  ArrowRight,
-  Clock
-} from "lucide-react"
+import { Package, ArrowRight, Loader2, Sparkles } from "lucide-react"
 import Link from "next/link"
-import { format } from "date-fns"
+import { useSearchParams, useRouter } from "next/navigation"
 import { DashboardSkeleton } from "@/components/loading/dashboard-skeleton"
 import { ProductOnboarding } from "@/components/onboarding/product-onboarding"
+import { useToast } from "@/hooks/use-toast"
 
 // ============================================
 // DATA FETCHING
@@ -31,70 +22,27 @@ async function fetchProducts() {
   return res.json()
 }
 
-async function fetchActivities() {
-  const res = await fetch("/api/activities?limit=10")
-  if (!res.ok) throw new Error("Failed to fetch activities")
+async function fetchGuideNext() {
+  const res = await fetch("/api/guide/next")
+  if (!res.ok) throw new Error("Failed to fetch next action")
   return res.json()
 }
 
-async function fetchDrafts() {
-  const res = await fetch("/api/content/drafts?limit=5")
-  if (!res.ok) throw new Error("Failed to fetch drafts")
+async function fetchActivity(id: string) {
+  const res = await fetch(`/api/activities/${id}`)
+  if (!res.ok) throw new Error("Failed to fetch activity")
+  return res.json()
+}
+
+async function fetchInsight(id: string) {
+  const res = await fetch(`/api/insights/${id}`)
+  if (!res.ok) throw new Error("Failed to fetch insight")
   return res.json()
 }
 
 // ============================================
 // HELPER COMPONENTS
 // ============================================
-
-function StrategyQuickView({ strategy }: { strategy: any }) {
-  if (!strategy) return null
-
-  const platforms = JSON.parse(strategy.platforms || "[]")
-  const cadence = JSON.parse(strategy.cadence || "{}")
-  const primaryPlatforms = platforms.filter((p: any) => p.priority === "primary").slice(0, 3)
-  const avoidPlatforms = platforms.filter((p: any) => p.priority === "avoid").slice(0, 2)
-
-  return (
-    <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <Target className="h-5 w-5 text-primary" />
-          <CardTitle className="text-lg">Your Marketing Strategy</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm leading-relaxed">{strategy.summary}</p>
-        
-        <div className="flex flex-wrap gap-2">
-          {primaryPlatforms.map((p: any) => (
-            <div 
-              key={p.platform}
-              className="flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs"
-            >
-              <Check className="h-3 w-3" />
-              <span className="capitalize">{p.platform}</span>
-            </div>
-          ))}
-          {avoidPlatforms.map((p: any) => (
-            <div 
-              key={p.platform}
-              className="flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs line-through"
-            >
-              <X className="h-3 w-3" />
-              <span className="capitalize">{p.platform}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Clock className="h-4 w-4" />
-          <span>{cadence.frequency || "2-3 posts per week"}</span>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
 
 function NoProductState({ onAddProduct }: { onAddProduct: () => void }) {
   return (
@@ -104,15 +52,73 @@ function NoProductState({ onAddProduct }: { onAddProduct: () => void }) {
       </div>
       <h2 className="text-2xl font-bold mb-2">Welcome to AuthorAI</h2>
       <p className="text-muted-foreground max-w-md mb-6">
-        Tell us about your product and we'll create a personalized marketing strategy — 
+        Tell us about your product and we'll create a personalized marketing strategy —
         which platforms to use, what content to create, and what to skip.
       </p>
       <Button size="lg" onClick={onAddProduct}>
-        Add Your Product
+        Add your product
         <ArrowRight className="ml-2 h-4 w-4" />
       </Button>
     </div>
   )
+}
+
+function NextCard({
+  step,
+  reason,
+  cta,
+  href,
+  stepLabel,
+}: {
+  step: string
+  reason: string
+  cta: string
+  href: string
+  stepLabel: string
+}) {
+  return (
+    <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+      <CardHeader>
+        <CardTitle className="text-lg">Next: {stepLabel}</CardTitle>
+        <CardDescription>{reason}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button asChild>
+          <Link href={href}>{cta}</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function stepToLabel(step: string): string {
+  switch (step) {
+    case "add_product":
+      return "Add your product"
+    case "view_strategy":
+      return "See your strategy"
+    case "get_angle":
+      return "Get the angle"
+    case "create_post":
+      return "Create post"
+    case "review_draft":
+      return "Review your draft"
+    case "share_story":
+      return "Share a story"
+    default:
+      return step.replace(/_/g, " ")
+  }
+}
+
+function getPrimaryPlatform(strategy: any): string {
+  if (!strategy?.platforms) return "linkedin"
+  try {
+    const platforms = typeof strategy.platforms === "string" ? JSON.parse(strategy.platforms) : strategy.platforms
+    const primary = platforms.find((p: any) => p.priority === "primary")
+    return primary?.platform || "linkedin"
+  } catch {
+    return "linkedin"
+  }
 }
 
 // ============================================
@@ -121,30 +127,118 @@ function NoProductState({ onAddProduct }: { onAddProduct: () => void }) {
 
 export default function DashboardPage() {
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+
+  const action = searchParams.get("action")
+  const activityId = searchParams.get("activityId")
+  const insightId = searchParams.get("insightId")
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ["products"],
     queryFn: fetchProducts,
   })
 
-  const { data: activitiesData, isLoading: activitiesLoading } = useQuery({
-    queryKey: ["activities"],
-    queryFn: fetchActivities,
+  const { data: guideData, isLoading: guideLoading } = useQuery({
+    queryKey: ["guide-next"],
+    queryFn: fetchGuideNext,
+    enabled: !!productsData?.products?.length && !action,
   })
 
-  const { data: draftsData, isLoading: draftsLoading } = useQuery({
-    queryKey: ["drafts"],
-    queryFn: fetchDrafts,
+  const { data: activityData, isLoading: activityLoading } = useQuery({
+    queryKey: ["activity", activityId!],
+    queryFn: () => fetchActivity(activityId!),
+    enabled: action === "extract" && !!activityId,
   })
 
-  const isLoading = productsLoading || activitiesLoading || draftsLoading
+  const { data: insightData, isLoading: insightLoading } = useQuery({
+    queryKey: ["insight", insightId!],
+    queryFn: () => fetchInsight(insightId!),
+    enabled: action === "post" && !!insightId,
+  })
+
+  const extractMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/insights/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activityId }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to extract angle")
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["guide-next"] })
+      queryClient.invalidateQueries({ queryKey: ["activities"] })
+      queryClient.invalidateQueries({ queryKey: ["insights"] })
+      toast({
+        title: "Angle ready",
+        description: "You can now create a post from this angle.",
+        variant: "success",
+      })
+      router.push("/dashboard")
+    },
+    onError: (e: Error) => {
+      toast({
+        title: "Error",
+        description: e.message,
+        variant: "destructive",
+      })
+    },
+  })
+
+  const createPostMutation = useMutation({
+    mutationFn: async () => {
+      const products = productsData?.products || []
+      const activeProduct = products.find((p: any) => p.id === productsData?.activeProductId) || products[0]
+      const platform = getPrimaryPlatform(activeProduct?.strategy)
+      const res = await fetch("/api/content/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ insightId, type: "post", platform }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Failed to create post")
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["guide-next"] })
+      queryClient.invalidateQueries({ queryKey: ["drafts"] })
+      toast({
+        title: "Draft created",
+        description: "Review your draft in Content.",
+        variant: "success",
+      })
+      router.push("/dashboard/content")
+    },
+    onError: (e: Error) => {
+      toast({
+        title: "Error",
+        description: e.message,
+        variant: "destructive",
+      })
+    },
+  })
+
+  const isLoading =
+    productsLoading ||
+    (!!productsData?.products?.length && !action && guideLoading) ||
+    (action === "extract" && activityLoading) ||
+    (action === "post" && insightLoading)
   const products = productsData?.products || []
   const activeProductId = productsData?.activeProductId
   const activeProduct = products.find((p: any) => p.id === activeProductId) || products[0]
-  const activities = activitiesData?.activities || []
-  const drafts = draftsData?.drafts || []
+  const next = guideData
+  const activity = activityData?.activity
+  const insight = insightData?.insight
 
-  // Show onboarding if no products and hasn't been dismissed
   useEffect(() => {
     if (!productsLoading && products.length === 0) {
       const hasSeenOnboarding = localStorage.getItem("onboarding_completed")
@@ -154,27 +248,125 @@ export default function DashboardPage() {
     }
   }, [productsLoading, products.length])
 
-  if (isLoading) {
+  if (isLoading && products.length > 0 && !action) {
     return <DashboardSkeleton />
   }
 
-  // No products yet - show welcome state
   if (products.length === 0) {
     return (
       <>
         <NoProductState onAddProduct={() => setShowOnboarding(true)} />
-        <ProductOnboarding 
-          open={showOnboarding} 
-          onOpenChange={setShowOnboarding}
-        />
+        <ProductOnboarding open={showOnboarding} onOpenChange={setShowOnboarding} />
       </>
     )
   }
 
+  const strategySummary = activeProduct?.strategy?.summary ?? null
+
+  // Flow: Get the angle (action=extract)
+  if (action === "extract" && activityId) {
+    if (activityLoading || !activity) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      )
+    }
+    return (
+      <>
+        <div className="space-y-8">
+          <div>
+            <h1 className="text-3xl font-bold">{activeProduct?.name}</h1>
+            {strategySummary && (
+              <p className="text-muted-foreground mt-2 max-w-2xl">{strategySummary}</p>
+            )}
+          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>What you shared</CardTitle>
+              <CardDescription>{activity.title}</CardDescription>
+            </CardHeader>
+            {activity.description && (
+              <CardContent>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {activity.description}
+                </p>
+              </CardContent>
+            )}
+            <CardContent>
+              <Button
+                onClick={() => extractMutation.mutate()}
+                disabled={extractMutation.isPending}
+              >
+                {extractMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-2 h-4 w-4" />
+                )}
+                Get the angle
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+        <ProductOnboarding open={showOnboarding} onOpenChange={setShowOnboarding} />
+      </>
+    )
+  }
+
+  // Flow: Create post (action=post) — single Angle card
+  if (action === "post" && insightId) {
+    if (insightLoading || !insight) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      )
+    }
+    const headline = insight.solution || insight.coreProblem
+    const whyMatters = insight.whyMatters
+    return (
+      <>
+        <div className="space-y-8">
+          <div>
+            <h1 className="text-3xl font-bold">{activeProduct?.name}</h1>
+            {strategySummary && (
+              <p className="text-muted-foreground mt-2 max-w-2xl">{strategySummary}</p>
+            )}
+          </div>
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+            <CardHeader>
+              <CardTitle className="text-lg">Post angle</CardTitle>
+              <CardDescription className="text-base font-medium text-foreground">
+                {headline}
+              </CardDescription>
+              {whyMatters && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Why your audience cares: {whyMatters}
+                </p>
+              )}
+            </CardHeader>
+            <CardContent>
+              <Button
+                onClick={() => createPostMutation.mutate()}
+                disabled={createPostMutation.isPending}
+              >
+                {createPostMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Create post
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+        <ProductOnboarding open={showOnboarding} onOpenChange={setShowOnboarding} />
+      </>
+    )
+  }
+
+  // Default: product context + Next card
   return (
     <>
       <div className="space-y-8">
-        {/* Header with Product Context */}
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-3 mb-2">
@@ -185,155 +377,36 @@ export default function DashboardPage() {
                 </Badge>
               )}
             </div>
-            <p className="text-muted-foreground">
-              {activeProduct?.type?.replace("_", " ")} • {activeProduct?.audience?.replace("_", " ")} • {activeProduct?.stage}
-            </p>
+            {strategySummary && (
+              <p className="text-muted-foreground max-w-2xl">{strategySummary}</p>
+            )}
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setShowOnboarding(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Product
-            </Button>
-            <Button asChild>
-              <Link href="/dashboard/activities/new">
-                <Plus className="mr-2 h-4 w-4" />
-                New Activity
-              </Link>
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={() => setShowOnboarding(true)}>
+            Add product
+          </Button>
         </div>
 
-        {/* Strategy Summary */}
-        {activeProduct?.strategy && (
-          <StrategyQuickView strategy={activeProduct.strategy} />
+        {next && (
+          <NextCard
+            step={next.step}
+            reason={next.reason}
+            cta={next.cta}
+            href={next.href}
+            stepLabel={stepToLabel(next.step)}
+          />
         )}
 
-        {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Activities</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{activities.length}</div>
-              <p className="text-xs text-muted-foreground">
-                {activities.filter((a: any) => !a.processed).length} ready for insights
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Content Drafts</CardTitle>
-              <Sparkles className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{drafts.length}</div>
-              <p className="text-xs text-muted-foreground">
-                {drafts.filter((d: any) => d.status === "draft").length} pending review
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Strategy Confidence</CardTitle>
-              <Target className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {activeProduct?.strategy 
-                  ? `${Math.round(activeProduct.strategy.confidence * 100)}%`
-                  : "—"
-                }
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Based on your product profile
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Content Grid */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Activities</CardTitle>
-              <CardDescription>Track your product work</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {activities.slice(0, 5).map((activity: any) => (
-                  <div key={activity.id} className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">{activity.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(activity.createdAt), "MMM d, yyyy")}
-                      </p>
-                    </div>
-                    <Badge variant={activity.processed ? "secondary" : "default"}>
-                      {activity.processed ? "Processed" : "New"}
-                    </Badge>
-                  </div>
-                ))}
-                {activities.length === 0 && (
-                  <div className="text-center py-6">
-                    <p className="text-sm text-muted-foreground mb-4">No activities yet</p>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href="/dashboard/activities/new">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Activity
-                      </Link>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Pending Drafts</CardTitle>
-              <CardDescription>Content waiting for your review</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {drafts.slice(0, 5).map((draft: any) => (
-                  <div key={draft.id} className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">
-                        {draft.title || `${draft.type} for ${draft.platform || "general"}`}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {draft.type} • {draft.platform || "all platforms"}
-                      </p>
-                    </div>
-                    <Badge variant="outline">{draft.status}</Badge>
-                  </div>
-                ))}
-                {drafts.length === 0 && (
-                  <div className="text-center py-6">
-                    <p className="text-sm text-muted-foreground mb-4">No drafts yet</p>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href="/dashboard/insights">
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Generate Content
-                      </Link>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {next?.step === "review_draft" && next.draftTitle && (
+          <p className="text-sm text-muted-foreground">
+            1 draft waiting —{" "}
+            <Link href={next.href} className="text-primary underline underline-offset-2">
+              {next.draftTitle}
+            </Link>
+          </p>
+        )}
       </div>
 
-      {/* Onboarding Modal */}
-      <ProductOnboarding 
-        open={showOnboarding} 
-        onOpenChange={setShowOnboarding}
-      />
+      <ProductOnboarding open={showOnboarding} onOpenChange={setShowOnboarding} />
     </>
   )
 }
