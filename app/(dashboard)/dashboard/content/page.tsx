@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
-import { Edit, Check, X, Calendar, AlertTriangle, Package, Target, BookOpen, Loader2, Sparkles, Copy, Search, Trash2, RefreshCw, Linkedin, Twitter, Instagram, FileText, Facebook, ChevronDown, ChevronUp } from "lucide-react"
+import { Edit, Check, X, Calendar, AlertTriangle, Package, Target, BookOpen, Loader2, Sparkles, Copy, Search, Trash2, RefreshCw, Linkedin, Twitter, FileText, Facebook, ChevronDown, ChevronUp } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { format } from "date-fns"
 import { useState, useMemo, useEffect, useRef } from "react"
@@ -123,7 +123,6 @@ async function regenerateDraft(draftId: string, feedback?: string) {
 const PLATFORM_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   linkedin: Linkedin,
   twitter: Twitter,
-  instagram: Instagram,
   blog: FileText,
   facebook: Facebook,
 }
@@ -1135,7 +1134,7 @@ export default function ContentPage() {
                             <TabsContent value="preview" className="mt-4">
                               <ContentPreview
                                 content={draft.content}
-                                platform={draft.platform as any}
+                                platform={draft.platform ?? undefined}
                                 title={draft.title || undefined}
                               />
                             </TabsContent>

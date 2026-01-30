@@ -279,7 +279,7 @@ export interface ContentGenerationOptions {
 export async function generateContent(
   insight: InsightExtraction,
   type: "post" | "blog" | "carousel" | "thread" | "caption",
-  platform?: "linkedin" | "twitter" | "instagram" | "blog" | "facebook",
+  platform?: "linkedin" | "twitter" | "blog" | "facebook",
   brandVoice?: string,
   userTier: "standard" | "premium" = "standard",
   productContext?: ProductContext,
@@ -385,8 +385,6 @@ Output must be valid JSON:
   const platformGuidance: Record<string, string> = {
     linkedin: "Professional, thoughtful, value-driven. Can be longer form.",
     twitter: "Concise, punchy, engaging. 280 char limit per tweet, use threads for longer content.",
-    instagram:
-      "Short caption (50–150 words). Punchy, scannable, authentic.",
     blog: "In-depth, well-structured, SEO-friendly.",
     facebook: "Community-oriented, shareable, conversational. Mix of value and connection.",
     github: "Technical, precise, documentation-style.",

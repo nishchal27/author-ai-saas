@@ -55,7 +55,6 @@ export interface DecideContentOptionsOutput {
 const VALID_PLATFORMS: SupportedPlatform[] = [
   "linkedin",
   "twitter",
-  "instagram",
   "facebook",
   "blog",
 ]

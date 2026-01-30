@@ -97,15 +97,15 @@ export async function POST(req: Request) {
       }
     }
 
+    const bv = (user as { brandVoice?: string | null }).brandVoice
     let brandVoice: string | undefined
     try {
-      const bv = (user as any).brandVoice
       brandVoice = bv ? JSON.parse(bv).tone : undefined
     } catch {
       brandVoice = undefined
     }
     const userTier = (user.tier === "premium" ? "premium" : "standard") as "standard" | "premium"
-    const founderBio = (user as any).founderBio ?? null
+    const founderBio = user.founderBio ?? null
     let techStack: string | null = null
     const productWithTech = product as { techStackJson?: string | null } | null
     if (productWithTech?.techStackJson) {

@@ -25,6 +25,9 @@ model User {
   // Build in public: founder bio (who you are, what you share)
   founderBio String? @db.Text
 
+  // Content: brand voice override (JSON: { tone: "..." })
+  brandVoice String? @db.Text
+
   // Relations
   products      Product[]
   integrations  Integration[]
@@ -180,7 +183,7 @@ model ContentDraft {
   productId   String?  // Links content to specific product (inherits strategy)
   insightId   String
   type        String   // "post", "blog", "carousel", "thread", "caption"
-  platform    String?  // "linkedin", "twitter", "instagram", "blog", "facebook", etc.
+  platform    String?  // "linkedin", "twitter", "blog", "facebook", etc.
   title       String?
   content     String   @db.Text
   visualPrompt String? @db.Text

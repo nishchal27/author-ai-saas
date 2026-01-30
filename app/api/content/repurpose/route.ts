@@ -107,7 +107,8 @@ export async function POST(req: Request) {
         : decision.suggestedFormat
     const platform = platformOverride ?? decision.suggestedPlatform
 
-    const brandVoice = user.brandVoice ? JSON.parse(user.brandVoice).tone : undefined
+    const bv = (user as { brandVoice?: string | null }).brandVoice
+    const brandVoice = bv ? JSON.parse(bv).tone : undefined
     const userTier = (user.tier === "premium" ? "premium" : "standard") as "standard" | "premium"
 
     const contentData = await generateContent(
@@ -120,7 +121,7 @@ export async function POST(req: Request) {
         themes: insight.themes ? JSON.parse(insight.themes) : undefined,
       },
       type as "post" | "blog" | "carousel" | "thread" | "caption",
-      platform as "linkedin" | "twitter" | "instagram" | "blog" | "facebook" | undefined,
+      platform as "linkedin" | "twitter" | "blog" | "facebook" | undefined,
       brandVoice,
       userTier,
       productContext,

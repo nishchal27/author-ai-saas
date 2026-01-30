@@ -17,7 +17,7 @@ import {
 import { ArrowLeft, Loader2, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
-import { SUPPORTED_PLATFORMS, PLATFORM_LABELS } from "@/lib/constants"
+import { SUPPORTED_PLATFORMS, PLATFORM_LABELS, type SupportedPlatform } from "@/lib/constants"
 import {
   AUDIENCE_SEGMENTS,
   AUDIENCE_SEGMENT_LABELS,
@@ -101,8 +101,8 @@ export default function ContentCreatePage() {
   const [scratchAudience, setScratchAudience] = useState("")
   const [scratchWhyMatters, setScratchWhyMatters] = useState("")
 
-  const [platform, setPlatform] = useState(platformParam && SUPPORTED_PLATFORMS.includes(platformParam as any) ? platformParam : "linkedin")
-  const [postType, setPostType] = useState(platformParam === "instagram" ? "caption" : "post")
+  const [platform, setPlatform] = useState(platformParam && SUPPORTED_PLATFORMS.includes(platformParam as SupportedPlatform) ? platformParam : "linkedin")
+  const [postType, setPostType] = useState("post")
   const [valueIntent, setValueIntent] = useState("product_trust")
   const [valueReason, setValueReason] = useState("")
 
@@ -136,10 +136,6 @@ export default function ContentCreatePage() {
       setStep(2)
     }
   }, [insightIdParam])
-
-  useEffect(() => {
-    if (platform === "instagram" && postType === "post") setPostType("caption")
-  }, [platform])
 
   const createInsightMutation = useMutation({
     mutationFn: createInsight,

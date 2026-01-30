@@ -327,7 +327,7 @@ model ContentDraft {
   productId   String?  // NEW: Links to product (inherits strategy)
   insightId   String
   type        String   // "post", "blog", "carousel", "thread", "caption"
-  platform    String?  // "linkedin", "twitter", "instagram", "blog"
+  platform    String?  // "linkedin", "twitter", "blog", "facebook"
   title       String?
   content     String   @db.Text
   visualPrompt String? @db.Text
@@ -1029,7 +1029,7 @@ All endpoints require Clerk authentication via `auth()` from `@clerk/nextjs/serv
   "insightId": "string",
   "productId": "string (optional)",
   "type": "post" | "blog" | "carousel" | "thread" | "caption",
-  "platform": "linkedin" | "twitter" | "instagram" | "blog"
+  "platform": "linkedin" | "twitter" | "blog" | "facebook"
 }
 ```
 
@@ -1095,7 +1095,7 @@ All endpoints require Clerk authentication via `auth()` from `@clerk/nextjs/serv
 ```json
 {
   "contentDraftId": "string",
-  "platform": "linkedin" | "twitter" | "instagram",
+  "platform": "linkedin" | "twitter" | "blog" | "facebook",
   "scheduledAt": "ISO datetime"
 }
 ```
@@ -1299,8 +1299,8 @@ export const anthropic = new Anthropic({
 **Platform Guidance**:
 - LinkedIn: Professional, thoughtful, longer form
 - Twitter: Concise, punchy, 280 char limit
-- Instagram: Visual-first, engaging
 - Blog: In-depth, SEO-friendly
+- Facebook: Community-oriented, shareable
 - GitHub: Technical, precise, documentation-style
 - HackerNews: Technical, substantive, no marketing speak
 

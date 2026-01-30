@@ -12,7 +12,7 @@ export interface EvaluationResult {
 
 /**
  * Evaluate a content draft for platform and goal fit.
- * Returns score 0–1 and a one-sentence note (e.g. "Fits Instagram: short caption, strong visual hook").
+ * Returns score 0–1 and a one-sentence note (e.g. "Fits LinkedIn: professional, value-driven").
  */
 export async function evaluateContent(
   content: string,
@@ -20,7 +20,7 @@ export async function evaluateContent(
   intent: string,
   valueReason?: string
 ): Promise<EvaluationResult> {
-  const systemPrompt = `You are a content quality reviewer for AuthorAI. Rate the given draft for fit with the platform and the creator's goal. Output valid JSON only: { "score": number between 0 and 1, "note": "One short sentence explaining why (e.g. 'Fits Instagram: short caption, strong visual hook.' or 'Could be punchier for Twitter.')" }. Be concise.`
+  const systemPrompt = `You are a content quality reviewer for AuthorAI. Rate the given draft for fit with the platform and the creator's goal. Output valid JSON only: { "score": number between 0 and 1, "note": "One short sentence explaining why (e.g. 'Fits LinkedIn: professional, value-driven.' or 'Could be punchier for Twitter.')" }. Be concise.`
 
   const userPrompt = `Platform: ${platform}. Goal/intent: ${intent}.${valueReason ? ` Extra context: ${valueReason}` : ""}
 

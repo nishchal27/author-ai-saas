@@ -183,10 +183,9 @@ export function getSuggestedFormats(
 // SUGGESTED PLATFORMS BY SEGMENT
 // ============================================
 
-/** Non-technical: prefer visual / familiar channels */
+/** Non-technical: prefer familiar channels */
 const PLATFORMS_NON_TECHNICAL: SupportedPlatform[] = [
   "facebook",
-  "instagram",
   "linkedin", // still used by many SMBs
   "blog",
 ]

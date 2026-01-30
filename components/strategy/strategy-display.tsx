@@ -13,7 +13,6 @@ import {
   Loader2,
   Linkedin,
   Twitter,
-  Instagram,
   Github,
   Mail,
   FileText,
@@ -85,7 +84,6 @@ interface StrategyDisplayProps {
 const PLATFORM_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   linkedin: Linkedin,
   twitter: Twitter,
-  instagram: Instagram,
   github: Github,
   email: Mail,
   hackernews: FileText,

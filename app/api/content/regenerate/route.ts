@@ -79,8 +79,9 @@ export async function POST(req: Request) {
     }
 
     const type = (draft.type as "post" | "blog" | "carousel" | "thread" | "caption") || "post"
-    const platform = draft.platform as "linkedin" | "twitter" | "instagram" | "blog" | "facebook" | undefined
-    const brandVoice = user.brandVoice ? JSON.parse(user.brandVoice).tone : undefined
+    const platform = draft.platform as "linkedin" | "twitter" | "blog" | "facebook" | undefined
+    const bv = (user as { brandVoice?: string | null }).brandVoice
+    const brandVoice = bv ? JSON.parse(bv).tone : undefined
     const userTier = (user.tier === "premium" ? "premium" : "standard") as "standard" | "premium"
 
     const contentData = await generateContent(

@@ -9,7 +9,7 @@
 import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/db"
-import { generateMarketingStrategy, formatStrategyForDisplay } from "@/lib/strategy"
+import { generateMarketingStrategy, formatStrategyForDisplay, type ProductType, type ProductStage, type SalesMotion } from "@/lib/strategy"
 
 // GET /api/products/[id]/strategy - Get formatted strategy for display
 export async function GET(
@@ -105,12 +105,12 @@ export async function POST(
     // Generate new strategy
     const strategyOutput = await generateMarketingStrategy({
       name: product.name,
-      type: product.type as any,
+      type: product.type as ProductType,
       industry: product.industry,
       audience: product.audience,
       audienceDetail: product.audienceDetail ?? undefined,
-      stage: product.stage as any,
-      salesMotion: product.salesMotion as any,
+      stage: product.stage as ProductStage,
+      salesMotion: product.salesMotion as SalesMotion,
       description: product.description || undefined,
       website: product.website || undefined,
       competitors: product.competitors || undefined,

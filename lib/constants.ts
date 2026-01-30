@@ -5,7 +5,6 @@
 export const SUPPORTED_PLATFORMS = [
   "linkedin",
   "twitter",
-  "instagram",
   "facebook",
   "blog",
 ] as const
@@ -15,7 +14,6 @@ export type SupportedPlatform = (typeof SUPPORTED_PLATFORMS)[number]
 export const PLATFORM_LABELS: Record<SupportedPlatform, string> = {
   linkedin: "LinkedIn",
   twitter: "Twitter",
-  instagram: "Instagram",
   facebook: "Facebook",
   blog: "Blog",
 }

@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Linkedin, Twitter, Instagram, FileText, Facebook } from "lucide-react"
+import { Linkedin, Twitter, FileText, Facebook } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { SupportedPlatform } from "@/lib/constants"
 
@@ -16,7 +16,6 @@ interface ContentPreviewProps {
 const platformIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   linkedin: Linkedin,
   twitter: Twitter,
-  instagram: Instagram,
   blog: FileText,
   facebook: Facebook,
 }
@@ -24,7 +23,6 @@ const platformIcons: Record<string, React.ComponentType<{ className?: string }>>
 const platformColors: Record<string, string> = {
   linkedin: "bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800",
   twitter: "bg-sky-50 border-sky-200 dark:bg-sky-950 dark:border-sky-800",
-  instagram: "bg-pink-50 border-pink-200 dark:bg-pink-950 dark:border-pink-800",
   blog: "bg-gray-50 border-gray-200 dark:bg-gray-950 dark:border-gray-800",
   facebook: "bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800",
 }
@@ -62,7 +60,6 @@ export function ContentPreview({
         <CardDescription>
           {platformKey === "linkedin" && "Professional, thoughtful content"}
           {platformKey === "twitter" && "Concise, engaging post"}
-          {platformKey === "instagram" && "Visual-first content"}
           {platformKey === "blog" && "In-depth article"}
           {platformKey === "facebook" && "Community-oriented, shareable content"}
         </CardDescription>
@@ -75,7 +72,6 @@ export function ContentPreview({
           "prose prose-sm max-w-none",
           platformKey === "twitter" && "text-sm leading-relaxed",
           platformKey === "linkedin" && "text-base leading-relaxed",
-          platformKey === "instagram" && "text-base leading-relaxed",
           platformKey === "blog" && "prose-lg",
           platformKey === "facebook" && "text-base leading-relaxed"
         )}>
