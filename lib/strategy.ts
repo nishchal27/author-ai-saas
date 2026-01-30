@@ -102,10 +102,8 @@ export interface MarketingStrategyOutput {
   platforms: PlatformRecommendation[]
   contentTypes: ContentTypeRecommendation[]
   tone: ToneRecommendation
-  visualStyle: {
-    style: string
-    examples: string[]
-  }
+  /** @deprecated AI image style removed; diagrams/screenshots only. Kept for DB compatibility. */
+  visualStyle?: { style: string; examples: string[] }
   cadence: CadenceRecommendation
   proofTypes: string[]
   antiPatterns: AntiPattern[]
@@ -456,12 +454,11 @@ Generate a complete marketing strategy that:
 3. Provides clear, human-readable reasoning
 4. Includes confidence level (0.0-1.0)
 
-Return ONLY valid JSON matching this structure:
+Return ONLY valid JSON matching this structure (do NOT include visualStyle):
 {
   "platforms": [{ "platform": "string", "priority": "primary|secondary|avoid", "reasoning": "string" }],
   "contentTypes": [{ "type": "string", "recommended": boolean, "reasoning": "string" }],
   "tone": { "style": "string", "examples": ["string"], "avoid": ["string"] },
-  "visualStyle": { "style": "string", "examples": ["string"] },
   "cadence": { "frequency": "string", "postsPerWeek": number, "reasoning": "string" },
   "proofTypes": ["string"],
   "antiPatterns": [{ "pattern": "string", "reasoning": "string" }],
@@ -502,10 +499,6 @@ Return ONLY valid JSON matching this structure:
         style: "Professional and clear",
         examples: ["Clear, value-focused content"],
         avoid: ["Generic marketing speak"]
-      },
-      visualStyle: {
-        style: "Clean and professional",
-        examples: ["Minimalist design", "Brand colors"]
       },
       cadence: refinedPattern.cadence || {
         frequency: "2-3 posts per week",

@@ -55,7 +55,7 @@ const features = [
     icon: FileText,
     title: "Strategy-Guided Content",
     description:
-      "Content generation follows your product's strategy automatically. Get warnings if you use non-recommended platforms. Posts, blogs, and visuals match your tone and avoid anti-patterns.",
+      "Content generation follows your product's strategy automatically. Get warnings if you use non-recommended platforms. Posts and blogs match your tone and avoid anti-patterns.",
     color: "text-teal-600",
     bgColor: "bg-teal-50 dark:bg-teal-950",
   },

@@ -154,7 +154,7 @@ export async function POST(req: Request) {
         platform: platform || null,
         title: contentData.title || null,
         content: contentData.content,
-        visualPrompt: contentData.visualPrompt || null,
+        visualPrompt: null,
         cta: contentData.cta || null,
         status: "draft",
         intent: intentForDecision,
