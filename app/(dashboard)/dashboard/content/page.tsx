@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
-import { Edit, Check, X, Image as ImageIcon, Calendar, AlertTriangle, Package, Target, BookOpen, Loader2, Sparkles, Copy, Search, Trash2, RefreshCw, Linkedin, Twitter, Instagram, FileText, Facebook } from "lucide-react"
+import { Edit, Check, X, Image as ImageIcon, Calendar, AlertTriangle, Package, Target, BookOpen, Loader2, Sparkles, Copy, Search, Trash2, RefreshCw, Linkedin, Twitter, Instagram, FileText, Facebook, ChevronDown, ChevronUp } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { format } from "date-fns"
 import { useState, useMemo, useEffect, useRef } from "react"
@@ -77,7 +77,7 @@ function getPlatformAlignment(platform: string | null, strategy: any) {
   }
 }
 
-async function updateDraft(id: string, data: { content?: string; status?: string }) {
+async function updateDraft(id: string, data: { content?: string; status?: string; visualUrl?: string | null }) {
   const res = await fetch(`/api/content/drafts/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -157,6 +157,7 @@ export default function ContentPage() {
       router.replace(`/dashboard/content?platform=all&draftId=${draftIdParam}`)
     }
   }, [draftIdParam, platformParam, router])
+
   const [searchQuery, setSearchQuery] = useState("")
   const [contentFocusAudience, setContentFocusAudience] = useState<string>("all")
   const [contentFocusIntent, setContentFocusIntent] = useState<string>("all")
@@ -168,6 +169,12 @@ export default function ContentPage() {
     queryKey: ["drafts", contentScope],
     queryFn: () => fetchDrafts(contentScope),
   })
+
+  useEffect(() => {
+    if (draftIdParam && data?.drafts?.length) {
+      setExpandedContentDraftId(draftIdParam)
+    }
+  }, [draftIdParam, data?.drafts?.length])
 
   const { data: productsData } = useQuery({
     queryKey: ["products"],
@@ -215,6 +222,8 @@ export default function ContentPage() {
   const [regenerateDraftId, setRegenerateDraftId] = useState<string | null>(null)
   const [regenerateOpen, setRegenerateOpen] = useState(false)
   const [regenerateFeedback, setRegenerateFeedback] = useState("")
+  const [expandedImageDraftId, setExpandedImageDraftId] = useState<string | null>(null)
+  const [expandedContentDraftId, setExpandedContentDraftId] = useState<string | null>(null)
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) => updateDraft(id, data),
@@ -1168,50 +1177,120 @@ export default function ContentPage() {
                   </div>
                 ) : (
                   <>
-                    <Tabs defaultValue="preview" className="w-full">
-                      <TabsList>
-                        <TabsTrigger value="preview">Preview</TabsTrigger>
-                        <TabsTrigger value="raw">Raw Content</TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="preview" className="mt-4">
-                        <ContentPreview
-                          content={draft.content}
-                          platform={draft.platform as any}
-                          title={draft.title || undefined}
-                          imageUrl={draft.visualUrl || undefined}
-                        />
-                      </TabsContent>
-                      <TabsContent value="raw" className="mt-4">
-                        <div className="prose prose-sm max-w-none">
-                          <p className="whitespace-pre-wrap">{draft.content}</p>
+                    <div className="rounded-lg border bg-muted/20 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedContentDraftId((id) => (id === draft.id ? null : draft.id))}
+                        className="w-full flex items-center justify-between gap-3 p-3 text-left hover:bg-muted/40 transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">Content</p>
+                          <p className="text-xs text-muted-foreground truncate mt-0.5">
+                            {expandedContentDraftId === draft.id
+                              ? "Click to collapse"
+                              : `${draft.content.slice(0, 80).replace(/\n/g, " ")}${draft.content.length > 80 ? "…" : ""}`}
+                          </p>
                         </div>
-                      </TabsContent>
-                    </Tabs>
+                        {expandedContentDraftId === draft.id ? (
+                          <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        )}
+                      </button>
+                      {expandedContentDraftId === draft.id && (
+                        <div className="border-t p-4 bg-background">
+                          <Tabs defaultValue="preview" className="w-full">
+                            <TabsList>
+                              <TabsTrigger value="preview">Preview</TabsTrigger>
+                              <TabsTrigger value="raw">Raw Content</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="preview" className="mt-4">
+                              <ContentPreview
+                                content={draft.content}
+                                platform={draft.platform as any}
+                                title={draft.title || undefined}
+                              />
+                            </TabsContent>
+                            <TabsContent value="raw" className="mt-4">
+                              <div className="prose prose-sm max-w-none">
+                                <p className="whitespace-pre-wrap">{draft.content}</p>
+                              </div>
+                            </TabsContent>
+                          </Tabs>
+                        </div>
+                      )}
+                    </div>
                     {draft.cta && (
-                      <div className="p-3 bg-muted rounded-md">
-                        <p className="text-sm font-medium">CTA: {draft.cta}</p>
+                      <div className="p-3 bg-muted/50 rounded-lg border text-sm">
+                        <p className="font-medium text-muted-foreground">CTA</p>
+                        <p>{draft.cta}</p>
                       </div>
                     )}
                     {draft.visualUrl && (
-                      <div className="space-y-2">
-                        <img
-                          src={draft.visualUrl}
-                          alt="Generated visual"
-                          className="rounded-md border"
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleGetImageSuggestions(draft.id)}
-                          disabled={imageSuggestionsLoading}
+                      <div className="rounded-lg border bg-muted/30 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedImageDraftId((id) => (id === draft.id ? null : draft.id))}
+                          className="w-full flex items-center gap-3 p-3 text-left hover:bg-muted/50 transition-colors"
                         >
-                          <ImageIcon className="mr-2 h-4 w-4" />
-                          Replace image
-                        </Button>
+                          <div className="flex-shrink-0 w-[120px] h-[80px] rounded border overflow-hidden bg-muted">
+                            <img
+                              src={draft.visualUrl}
+                              alt="Generated visual"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">Generated image</p>
+                            <p className="text-xs text-muted-foreground">
+                              {expandedImageDraftId === draft.id ? "Click to collapse" : "Click to expand"}
+                            </p>
+                          </div>
+                          {expandedImageDraftId === draft.id ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          )}
+                        </button>
+                        {expandedImageDraftId === draft.id && (
+                          <div className="border-t p-4 space-y-4 bg-background">
+                            <img
+                              src={draft.visualUrl}
+                              alt="Generated visual"
+                              className="rounded-lg border w-full max-w-lg mx-auto block object-contain max-h-[400px]"
+                            />
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleGetImageSuggestions(draft.id)}
+                                disabled={imageSuggestionsLoading}
+                              >
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Regenerate image
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  if (typeof window !== "undefined" && !window.confirm("Remove this image from the draft?")) return
+                                  updateMutation.mutate({ id: draft.id, data: { visualUrl: null } })
+                                  setExpandedImageDraftId(null)
+                                }}
+                                disabled={updateMutation.isPending}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete image
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                     {!draft.visualUrl && (
-                      <div className="space-y-3">
+                      <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+                        <p className="text-sm font-medium text-muted-foreground">Add image</p>
                         {imageSuggestionsDraftId === draft.id ? (
                           <>
                             {imageSuggestionsLoading ? (
@@ -1355,7 +1434,7 @@ export default function ContentPage() {
                         )}
                       </div>
                     )}
-                    <div className="flex gap-2 pt-4 border-t">
+                    <div className="flex flex-wrap gap-2 pt-4 mt-4 border-t">
                       <Button
                         size="sm"
                         variant="outline"

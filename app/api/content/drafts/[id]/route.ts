@@ -64,7 +64,7 @@ export async function PATCH(
     }
 
     const body = await req.json()
-    const { content, status } = body
+    const { content, status, visualUrl } = body
 
     const draft = await db.contentDraft.findFirst({
       where: {
@@ -82,6 +82,7 @@ export async function PATCH(
       data: {
         ...(content !== undefined ? { content } : {}),
         ...(status !== undefined ? { status } : {}),
+        ...(visualUrl !== undefined ? { visualUrl: visualUrl || null } : {}),
         version: draft.version + 1,
       },
     })
