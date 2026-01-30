@@ -46,6 +46,7 @@ export interface ContentDraft {
   content: string
   cta?: string
   visualPrompt?: string
+  whyThisContent?: string
 }
 
 // Product context for AI-generated content
@@ -257,6 +258,21 @@ Extract the core insight in JSON format.`
   return insight
 }
 
+export interface ContentGenerationOptions {
+  intent?: string
+  reason?: string
+  context?: string
+  /** Content Intelligence: who and how */
+  audienceSegment?: "non_technical" | "technical"
+  persona?: "founder_engineer" | "product_company"
+  toneDepth?: string
+  /** User feedback for regeneration: e.g. "less corporate", "more concrete" */
+  feedback?: string
+  /** Build in public: founder bio and product tech stack for richer context */
+  founderBio?: string
+  techStack?: string
+}
+
 /**
  * Content Translation Agent - Generates content drafts from insights
  * Now product-strategy-aware: uses marketing strategy to guide tone, style, and content
@@ -264,11 +280,12 @@ Extract the core insight in JSON format.`
 export async function generateContent(
   insight: InsightExtraction,
   type: "post" | "blog" | "carousel" | "thread" | "caption",
-  platform?: "linkedin" | "twitter" | "instagram" | "blog",
+  platform?: "linkedin" | "twitter" | "instagram" | "blog" | "facebook",
   brandVoice?: string,
   userTier: "standard" | "premium" = "standard",
   productContext?: ProductContext,
-  strategyContext?: StrategyContext
+  strategyContext?: StrategyContext,
+  options?: ContentGenerationOptions
 ): Promise<ContentDraft> {
   // Build strategy-aware guidance
   let strategyGuidance = ""
@@ -318,17 +335,39 @@ ${productContext.audienceDetail ? `- Specific target: ${productContext.audienceD
 ${productContext.description ? `- Description: ${productContext.description}` : ""}
 ` : ""
 
-  const systemPrompt = `You are a Content Translation Agent for AuthorAI. Your job is to create authentic, founder-style content from insights.
+  const audiencePersonaBlock =
+    options?.audienceSegment || options?.persona || options?.toneDepth
+      ? `
+AUDIENCE & PERSONA (Content Intelligence – follow strictly):
+${options.audienceSegment === "non_technical" ? `- Audience: NON-TECHNICAL (NGOs, event organizers, trainers, general users). Problem-focused, low patience for long text. Prefer clarity, simplicity, one clear benefit. Trust familiar channels; avoid jargon and technical depth.` : ""}
+${options.audienceSegment === "technical" ? `- Audience: TECHNICAL (developers, engineers, founders). Skeptical, pattern-seeking. Include reasoning, trade-offs, lessons. Prefer text and depth; avoid marketing language and hype.` : ""}
+${options.persona === "founder_engineer" ? `- Persona: FOUNDER/ENGINEER. Human, first-person, honest experiences. Mistakes, fixes, lessons. Product mentions are contextual, not salesy.` : ""}
+${options.persona === "product_company" ? `- Persona: PRODUCT/COMPANY. Benefit-driven, trust-oriented, clear outcomes. Simple language, reliability and ease.` : ""}
+${options.toneDepth ? `- Tone & depth: ${options.toneDepth}` : ""}
+`
+      : ""
+
+  const systemPrompt = `You are a Content Translation Agent for AuthorAI. Your job is to create authentic, audience-aware content from insights.
 
 CORE PRINCIPLES:
-- Write like a real founder, not a marketer
-- Be honest and credible, avoid hype
-- Focus on value and signal, not fluff
+- Write for the given audience segment (non-technical: simple, visual, one benefit; technical: reasoning, trade-offs, honest depth)
+- Match the requested persona (founder/engineer vs product/company)
+- Be honest and credible, avoid hype and generic corporate language
+- Clarity over cleverness; trust over virality; intent over volume
 - Match the product's marketing strategy when provided
 - Include a clear, non-pushy CTA when appropriate
-- Only provide visualPrompt if a single image would materially reinforce the message for this audience (e.g. before/after, simple diagram, product screenshot concept). If the post works better as text-only, omit visualPrompt or set it to null. Never use generic metaphors (snails, cars, hourglasses) unless the angle is explicitly about speed or time.
+- Only provide visualPrompt if a single image would materially reinforce the message for this audience (e.g. before/after, simple diagram, product screenshot concept). If the post works better as text-only, omit visualPrompt or set it to null. EXCEPTION: For Instagram you MUST always provide visualPrompt (image-centric platform); the caption is secondary to the visual. Never use generic metaphors (snails, cars, hourglasses) unless the angle is explicitly about speed or time.
+
+NEVER USE (sounds like generic AI/corporate filler):
+- "Hello, fellow [audience]!" or similar greetings
+- "We're committed to..." / "Transparency isn't just a buzzword" / "X and Y aren't just buzzwords for us"
+- Long lists of abstract virtues; prefer one concrete example or one clear benefit
+- Overly smooth, polished paragraphs; vary sentence length, use short punchy lines where it fits
+- Generic sign-offs like "Let's build together" unless the post is explicitly about collaboration
+Write like a human: specific, concrete, one clear idea per paragraph. If the insight mentions real details (e.g. "performance issues", "incremental optimization"), use those words—don't replace them with vague marketing speak.
 
 CRITICAL: If a marketing strategy is provided, you MUST follow its tone, style, and anti-patterns. The strategy was specifically designed for this product.
+${audiencePersonaBlock}
 
 Content types:
 - post: Medium-length social post (200-500 words)
@@ -342,21 +381,50 @@ Output must be valid JSON:
   "title": "Optional title",
   "content": "The main content",
   "cta": "Optional call-to-action",
-  "visualPrompt": "Optional. Only if an image would materially reinforce the message; otherwise null."
+  "visualPrompt": "Optional. Only if an image would materially reinforce the message; otherwise null. For Instagram this is REQUIRED—always provide a strong image/carousel concept.",
+  "whyThisContent": "One short sentence explaining why this content is suggested for this product and audience (e.g. 'This angle builds trust by showing real progress.')."
 }`
 
   const platformGuidance: Record<string, string> = {
     linkedin: "Professional, thoughtful, value-driven. Can be longer form.",
     twitter: "Concise, punchy, engaging. 280 char limit per tweet, use threads for longer content.",
-    instagram: "Visual-first, engaging, authentic.",
+    instagram:
+      "Instagram is IMAGE-CENTRIC. The primary output is a strong VISUAL CONCEPT (image or carousel). You MUST provide visualPrompt—never null for Instagram. The main content is a SHORT caption (50–150 words); the caption supports the visual, the visual is the hero. Punchy, scannable, authentic; no long paragraphs.",
     blog: "In-depth, well-structured, SEO-friendly.",
+    facebook: "Community-oriented, shareable, conversational. Mix of value and connection.",
     github: "Technical, precise, documentation-style.",
     hackernews: "Technical, substantive, no marketing speak.",
   }
 
   const oneLiner = insight.solution || insight.coreProblem
+  const intentBlock = options?.intent || options?.reason || options?.context
+    ? `
+INTENT / REASON / CONTEXT (user-provided):
+${options.intent ? `- Intent: ${options.intent}` : ""}
+${options.reason ? `- Reason: ${options.reason}` : ""}
+${options.context ? `- Context: ${options.context}` : ""}
+`
+    : ""
+  const founderTechBlock =
+    options?.founderBio || options?.techStack
+      ? `
+FOUNDER / BUILD IN PUBLIC (use where relevant; do not force):
+${options.founderBio ? `- Founder bio: ${options.founderBio}` : ""}
+${options.techStack ? `- Product tech stack: ${options.techStack}` : ""}
+`
+      : ""
+  const feedbackBlock = options?.feedback
+    ? `
+USER FEEDBACK FOR THIS VERSION (apply strictly):
+${options.feedback}
+Revise the content to address this feedback while keeping the same insight and platform.
+`
+    : ""
   const userPrompt = `Generate ${type} content${platform ? ` for ${platform}` : ""} from this insight:
-
+${feedbackBlock}
+${audiencePersonaBlock}
+${intentBlock}
+${founderTechBlock}
 INSIGHT:
 - Problem: ${insight.coreProblem}
 - Solution: ${insight.solution}
@@ -368,9 +436,10 @@ ${productContext ? `\nProduct: ${productContext.name}. Audience: ${productContex
 ${productGuidance}
 ${strategyGuidance}
 ${platform && platformGuidance[platform] ? `\nPLATFORM GUIDANCE: ${platformGuidance[platform]}` : ""}
+${platform === "instagram" ? `\nINSTAGRAM: You MUST output a non-null visualPrompt (strong image or carousel concept). Keep content as a short caption (50–150 words).` : ""}
 ${brandVoice ? `\nBRAND VOICE OVERRIDE: ${brandVoice}` : ""}
 
-Generate the content in JSON format. Remember to follow the tone and anti-patterns from the marketing strategy.`
+Generate the content in JSON format. Remember to follow the tone and anti-patterns from the marketing strategy. Include whyThisContent: one short sentence explaining why this content is suggested.`
 
   const model = getModelForContent(type, userTier)
   
@@ -383,4 +452,54 @@ Generate the content in JSON format. Remember to follow the tone and anti-patter
 
   const draft = JSON.parse(jsonMatch[0]) as ContentDraft
   return draft
+}
+
+export interface ImageSuggestion {
+  id: string
+  label: string
+  prompt: string
+}
+
+/**
+ * Generate 3–5 image concept suggestions for a content draft.
+ * Uses draft content + product context + strategy visual style.
+ */
+export async function generateImageSuggestions(
+  draftContent: string,
+  draftTitle?: string,
+  productContext?: ProductContext,
+  visualStyle?: string
+): Promise<ImageSuggestion[]> {
+  const systemPrompt = `You are an image concept advisor for AuthorAI. Given a piece of content (post, blog, etc.), suggest 3–5 distinct image concepts that would reinforce the message. Each concept should have:
+- label: short human-readable name (e.g. "Before/after", "Product in use", "Data snapshot")
+- prompt: a concise DALL·E–style image description (1–2 sentences, no text overlays, professional and minimal)
+
+Output valid JSON only: an array of objects with "id", "label", "prompt". Use id like "1", "2", "3", etc.`
+
+  const productPart = productContext
+    ? `Product: ${productContext.name}. Audience: ${productContext.audience}.${productContext.audienceDetail ? ` Target: ${productContext.audienceDetail}.` : ""}`
+    : ""
+  const stylePart = visualStyle ? `Visual style to match: ${visualStyle}.` : ""
+  const userPrompt = `Content${draftTitle ? ` (title: ${draftTitle})` : ""}:
+---
+${draftContent.slice(0, 2000)}
+---
+${productPart}
+${stylePart}
+
+Return a JSON array of 3–5 image suggestions: [{"id":"1","label":"...","prompt":"..."}, ...]`
+
+  const model = getModelForTier("standard")
+  const responseText = await callAI(systemPrompt, userPrompt, model, 1500)
+
+  const arrayMatch = responseText.match(/\[[\s\S]*\]/)
+  if (!arrayMatch) {
+    throw new Error("No JSON array found in AI response")
+  }
+  const raw = JSON.parse(arrayMatch[0]) as { id?: string; label?: string; prompt?: string }[]
+  return (Array.isArray(raw) ? raw : []).slice(0, 5).map((item, i) => ({
+    id: String(item?.id ?? i + 1),
+    label: String(item?.label ?? "Concept " + (i + 1)),
+    prompt: String(item?.prompt ?? "").trim() || "Professional, minimal image matching the content",
+  }))
 }

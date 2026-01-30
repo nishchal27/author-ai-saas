@@ -17,7 +17,7 @@ const productExamples = [
   {
     product: "Online Course for Learners",
     recommendations: [
-      { text: "YouTube + Twitter threads", good: true },
+      { text: "Twitter threads + Blog", good: true },
       { text: "Teaching mini-lessons", good: true },
       { text: "Corporate language", good: false },
       { text: "Aggressive sales CTAs", good: false },
@@ -27,7 +27,7 @@ const productExamples = [
   {
     product: "D2C Physical Product",
     recommendations: [
-      { text: "Instagram + TikTok", good: true },
+      { text: "Instagram + Facebook", good: true },
       { text: "Lifestyle videos", good: true },
       { text: "Long text explanations", good: false },
       { text: "LinkedIn presence", good: false },

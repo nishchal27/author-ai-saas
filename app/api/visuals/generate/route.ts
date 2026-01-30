@@ -47,11 +47,13 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Draft not found" }, { status: 404 })
       }
 
-      if (draft.visualPrompt) {
+      if (prompt) {
+        visualPrompt = prompt
+      } else if (draft.visualPrompt) {
         visualPrompt = draft.visualPrompt
       } else {
         return NextResponse.json(
-          { error: "Draft has no visual prompt" },
+          { error: "Draft has no visual prompt; provide a prompt or get image suggestions first" },
           { status: 400 }
         )
       }

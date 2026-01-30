@@ -5,8 +5,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Package, ArrowRight, Loader2, Sparkles } from "lucide-react"
+import { Package, ArrowRight, Loader2, Sparkles, User, Cpu } from "lucide-react"
 import Link from "next/link"
+import { JobStatusStrip } from "@/components/dashboard/job-status-strip"
+import { BuildInPublicModal } from "@/components/dashboard/build-in-public-modal"
 import { useSearchParams, useRouter } from "next/navigation"
 import { DashboardSkeleton } from "@/components/loading/dashboard-skeleton"
 import { ProductOnboarding } from "@/components/onboarding/product-onboarding"
@@ -22,6 +24,12 @@ async function fetchProducts() {
   return res.json()
 }
 
+async function fetchSettings() {
+  const res = await fetch("/api/settings")
+  if (!res.ok) throw new Error("Failed to fetch settings")
+  return res.json()
+}
+
 async function fetchGuideNext() {
   const res = await fetch("/api/guide/next")
   if (!res.ok) throw new Error("Failed to fetch next action")
@@ -31,12 +39,6 @@ async function fetchGuideNext() {
 async function fetchActivity(id: string) {
   const res = await fetch(`/api/activities/${id}`)
   if (!res.ok) throw new Error("Failed to fetch activity")
-  return res.json()
-}
-
-async function fetchInsight(id: string) {
-  const res = await fetch(`/api/insights/${id}`)
-  if (!res.ok) throw new Error("Failed to fetch insight")
   return res.json()
 }
 
@@ -110,23 +112,13 @@ function stepToLabel(step: string): string {
   }
 }
 
-function getPrimaryPlatform(strategy: any): string {
-  if (!strategy?.platforms) return "linkedin"
-  try {
-    const platforms = typeof strategy.platforms === "string" ? JSON.parse(strategy.platforms) : strategy.platforms
-    const primary = platforms.find((p: any) => p.priority === "primary")
-    return primary?.platform || "linkedin"
-  } catch {
-    return "linkedin"
-  }
-}
-
 // ============================================
 // MAIN COMPONENT
 // ============================================
 
 export default function DashboardPage() {
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showBuildInPublic, setShowBuildInPublic] = useState(false)
   const searchParams = useSearchParams()
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -134,11 +126,16 @@ export default function DashboardPage() {
 
   const action = searchParams.get("action")
   const activityId = searchParams.get("activityId")
-  const insightId = searchParams.get("insightId")
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ["products"],
     queryFn: fetchProducts,
+  })
+
+  const { data: settingsData } = useQuery({
+    queryKey: ["settings"],
+    queryFn: fetchSettings,
+    enabled: !!productsData?.products?.length,
   })
 
   const { data: guideData, isLoading: guideLoading } = useQuery({
@@ -151,12 +148,6 @@ export default function DashboardPage() {
     queryKey: ["activity", activityId!],
     queryFn: () => fetchActivity(activityId!),
     enabled: action === "extract" && !!activityId,
-  })
-
-  const { data: insightData, isLoading: insightLoading } = useQuery({
-    queryKey: ["insight", insightId!],
-    queryFn: () => fetchInsight(insightId!),
-    enabled: action === "post" && !!insightId,
   })
 
   const extractMutation = useMutation({
@@ -192,52 +183,22 @@ export default function DashboardPage() {
     },
   })
 
-  const createPostMutation = useMutation({
-    mutationFn: async () => {
-      const products = productsData?.products || []
-      const activeProduct = products.find((p: any) => p.id === productsData?.activeProductId) || products[0]
-      const platform = getPrimaryPlatform(activeProduct?.strategy)
-      const res = await fetch("/api/content/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ insightId, type: "post", platform }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || "Failed to create post")
-      }
-      return res.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["guide-next"] })
-      queryClient.invalidateQueries({ queryKey: ["drafts"] })
-      toast({
-        title: "Draft created",
-        description: "Review your draft in Content.",
-        variant: "success",
-      })
-      router.push("/dashboard/content")
-    },
-    onError: (e: Error) => {
-      toast({
-        title: "Error",
-        description: e.message,
-        variant: "destructive",
-      })
-    },
-  })
-
   const isLoading =
     productsLoading ||
     (!!productsData?.products?.length && !action && guideLoading) ||
-    (action === "extract" && activityLoading) ||
-    (action === "post" && insightLoading)
+    (action === "extract" && activityLoading)
   const products = productsData?.products || []
   const activeProductId = productsData?.activeProductId
   const activeProduct = products.find((p: any) => p.id === activeProductId) || products[0]
   const next = guideData
   const activity = activityData?.activity
-  const insight = insightData?.insight
+
+  // Redirect "Create post" to Content create (content creation only in Content area)
+  useEffect(() => {
+    if (action === "post" && searchParams.get("insightId")) {
+      router.replace(`/dashboard/content/create?insightId=${searchParams.get("insightId")}`)
+    }
+  }, [action, searchParams, router])
 
   useEffect(() => {
     if (!productsLoading && products.length === 0) {
@@ -313,57 +274,9 @@ export default function DashboardPage() {
     )
   }
 
-  // Flow: Create post (action=post) — single Angle card
-  if (action === "post" && insightId) {
-    if (insightLoading || !insight) {
-      return (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      )
-    }
-    const headline = insight.solution || insight.coreProblem
-    const whyMatters = insight.whyMatters
-    return (
-      <>
-        <div className="space-y-8">
-          <div>
-            <h1 className="text-3xl font-bold">{activeProduct?.name}</h1>
-            {strategySummary && (
-              <p className="text-muted-foreground mt-2 max-w-2xl">{strategySummary}</p>
-            )}
-          </div>
-          <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-            <CardHeader>
-              <CardTitle className="text-lg">Post angle</CardTitle>
-              <CardDescription className="text-base font-medium text-foreground">
-                {headline}
-              </CardDescription>
-              {whyMatters && (
-                <p className="text-sm text-muted-foreground mt-2">
-                  Why your audience cares: {whyMatters}
-                </p>
-              )}
-            </CardHeader>
-            <CardContent>
-              <Button
-                onClick={() => createPostMutation.mutate()}
-                disabled={createPostMutation.isPending}
-              >
-                {createPostMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
-                Create post
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-        <ProductOnboarding open={showOnboarding} onOpenChange={setShowOnboarding} />
-      </>
-    )
-  }
+  const founderBio = settingsData?.user?.founderBio ?? null
 
-  // Default: product context + Next card
+  // Default: organized dashboard with products, founder, jobs, next
   return (
     <>
       <div className="space-y-8">
@@ -386,6 +299,84 @@ export default function DashboardPage() {
           </Button>
         </div>
 
+        {/* Background jobs */}
+        <Card>
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-muted-foreground/50" aria-hidden />
+              Background
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <JobStatusStrip />
+          </CardContent>
+        </Card>
+
+        {/* Products */}
+        <div>
+          <h2 className="text-lg font-semibold mb-3">Products</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {products.map((p: any) => (
+              <Card key={p.id} className="overflow-hidden">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">{p.name}</CardTitle>
+                  <CardDescription className="line-clamp-2">
+                    {p.description || p.audience ? [p.description, p.audience].filter(Boolean).join(" · ") : "No description"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href={`/dashboard/strategy?productId=${p.id}`}>Strategy</Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* Founder & build in public */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <User className="h-4 w-4" />
+              Founder & build in public
+            </CardTitle>
+            <CardDescription>
+              Used to personalize content (build in public, lessons, tech stack).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {founderBio ? (
+              <p className="text-sm text-muted-foreground line-clamp-2">{founderBio}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">No founder bio or tech stacks set.</p>
+            )}
+            {products.some((p: any) => p.techStackJson) && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {products.map((p: any) => {
+                  if (!p.techStackJson) return null
+                  try {
+                    const arr = JSON.parse(p.techStackJson) as { name: string }[]
+                    return (
+                      <div key={p.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Cpu className="h-3.5 w-3.5" />
+                        <span>{p.name}: {arr.map((t) => t.name).join(", ")}</span>
+                      </div>
+                    )
+                  } catch {
+                    return null
+                  }
+                })}
+              </div>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setShowBuildInPublic(true)}>
+              {founderBio || products.some((p: any) => p.techStackJson) ? "Edit build in public profile" : "Add founder & tech stack"}
+            </Button>
+          </CardContent>
+        </Card>
+
         {next && (
           <NextCard
             step={next.step}
@@ -407,6 +398,7 @@ export default function DashboardPage() {
       </div>
 
       <ProductOnboarding open={showOnboarding} onOpenChange={setShowOnboarding} />
+      <BuildInPublicModal open={showBuildInPublic} onOpenChange={setShowBuildInPublic} />
     </>
   )
 }

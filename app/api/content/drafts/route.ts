@@ -19,12 +19,16 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const status = searchParams.get("status")
+    const scope = searchParams.get("scope") || "active" // "active" | "all"
     const limit = parseInt(searchParams.get("limit") || "20")
 
     const drafts = await db.contentDraft.findMany({
       where: {
         userId: user.id,
         ...(status ? { status } : {}),
+        ...(scope === "active" && user.activeProductId
+          ? { productId: user.activeProductId }
+          : {}),
       },
       orderBy: {
         createdAt: "desc",

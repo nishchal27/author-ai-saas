@@ -20,13 +20,18 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const processed = searchParams.get("processed")
     const productId = searchParams.get("productId")
+    const scope = searchParams.get("scope") || "active" // "active" | "all"
     const limit = parseInt(searchParams.get("limit") || "20")
+
+    const effectiveProductId =
+      productId ||
+      (scope === "active" && user.activeProductId ? user.activeProductId : undefined)
 
     const activities = await db.activity.findMany({
       where: {
         userId: user.id,
         ...(processed !== null ? { processed: processed === "true" } : {}),
-        ...(productId ? { productId } : {}),
+        ...(effectiveProductId ? { productId: effectiveProductId } : {}),
       },
       include: {
         product: {

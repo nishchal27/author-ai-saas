@@ -136,7 +136,7 @@ export async function GET(req: Request) {
         step: "create_post",
         reason: "This angle is ready to share.",
         cta: "Create post",
-        href: `/dashboard?action=post&insightId=${insightWithoutDraft.id}`,
+        href: `/dashboard/content/create?insightId=${insightWithoutDraft.id}`,
         insightId: insightWithoutDraft.id,
         oneLiner: oneLiner.slice(0, 120) + (oneLiner.length > 120 ? "…" : ""),
         whyAudienceCares: insightWithoutDraft.whyMatters,
