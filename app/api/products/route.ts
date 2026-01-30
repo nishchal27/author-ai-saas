@@ -126,7 +126,7 @@ export async function POST(request: Request) {
         platforms: JSON.stringify(strategyOutput.platforms),
         contentTypes: JSON.stringify(strategyOutput.contentTypes),
         tone: JSON.stringify(strategyOutput.tone),
-        visualStyle: JSON.stringify(strategyOutput.visualStyle),
+        visualStyle: JSON.stringify(strategyOutput.visualStyle ?? { style: "diagram-only" }),
         cadence: JSON.stringify(strategyOutput.cadence),
         proofTypes: JSON.stringify(strategyOutput.proofTypes),
         antiPatterns: JSON.stringify(strategyOutput.antiPatterns),

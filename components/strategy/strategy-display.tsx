@@ -61,7 +61,7 @@ interface MarketingStrategy {
   platforms: PlatformRecommendation[]
   contentTypes: ContentTypeRecommendation[]
   tone: ToneRecommendation
-  visualStyle: { style: string; examples: string[] }
+  visualStyle?: { style: string; examples: string[] }
   cadence: CadenceRecommendation
   proofTypes: string[]
   antiPatterns: AntiPattern[]

@@ -114,7 +114,7 @@ export async function POST(req: Request) {
       data: {
         title: contentData.title || null,
         content: contentData.content,
-        visualPrompt: contentData.visualPrompt || null,
+        visualPrompt: null,
         cta: contentData.cta || null,
         whyThisContent: contentData.whyThisContent || null,
         version: draft.version + 1,

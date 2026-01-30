@@ -77,12 +77,14 @@ export default function StrategyPage() {
     return <NoProductState />
   }
 
-  // Parse strategy data
+  // Parse strategy data (visualStyle optional)
   const rawStrategy = activeProduct.strategy ? {
     platforms: JSON.parse(activeProduct.strategy.platforms || "[]"),
     contentTypes: JSON.parse(activeProduct.strategy.contentTypes || "[]"),
     tone: JSON.parse(activeProduct.strategy.tone || "{}"),
-    visualStyle: JSON.parse(activeProduct.strategy.visualStyle || "{}"),
+    ...(activeProduct.strategy.visualStyle
+      ? { visualStyle: JSON.parse(activeProduct.strategy.visualStyle) }
+      : {}),
     cadence: JSON.parse(activeProduct.strategy.cadence || "{}"),
     proofTypes: JSON.parse(activeProduct.strategy.proofTypes || "[]"),
     antiPatterns: JSON.parse(activeProduct.strategy.antiPatterns || "[]"),

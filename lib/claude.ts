@@ -45,7 +45,6 @@ export interface ContentDraft {
   title?: string
   content: string
   cta?: string
-  visualPrompt?: string
   whyThisContent?: string
 }
 
@@ -84,9 +83,9 @@ export interface StrategyContext {
 }
 
 /**
- * Maps user tier to model name for the active provider
+ * Maps user tier to model name for the active provider.
  */
-function getModelForTier(userTier: "standard" | "premium" = "standard"): string {
+export function getModelForTier(userTier: "standard" | "premium" = "standard"): string {
   if (useAnthropic) {
     return userTier === "premium" 
       ? "claude-3-5-opus-20241022"
@@ -356,7 +355,6 @@ CORE PRINCIPLES:
 - Clarity over cleverness; trust over virality; intent over volume
 - Match the product's marketing strategy when provided
 - Include a clear, non-pushy CTA when appropriate
-- Only provide visualPrompt if a single image would materially reinforce the message for this audience (e.g. before/after, simple diagram, product screenshot concept). If the post works better as text-only, omit visualPrompt or set it to null. EXCEPTION: For Instagram you MUST always provide visualPrompt (image-centric platform); the caption is secondary to the visual. Never use generic metaphors (snails, cars, hourglasses) unless the angle is explicitly about speed or time.
 
 NEVER USE (sounds like generic AI/corporate filler):
 - "Hello, fellow [audience]!" or similar greetings
@@ -372,7 +370,7 @@ ${audiencePersonaBlock}
 Content types:
 - post: Medium-length social post (200-500 words)
 - blog: Full blog post draft (800-1500 words)
-- carousel: Carousel slide copy with visual prompt
+- carousel: Carousel slide copy
 - thread: Twitter/X thread format (multiple short posts)
 - caption: Short caption (50-150 words)
 
@@ -381,7 +379,6 @@ Output must be valid JSON:
   "title": "Optional title",
   "content": "The main content",
   "cta": "Optional call-to-action",
-  "visualPrompt": "Optional. Only if an image would materially reinforce the message; otherwise null. For Instagram this is REQUIRED—always provide a strong image/carousel concept.",
   "whyThisContent": "One short sentence explaining why this content is suggested for this product and audience (e.g. 'This angle builds trust by showing real progress.')."
 }`
 
@@ -389,7 +386,7 @@ Output must be valid JSON:
     linkedin: "Professional, thoughtful, value-driven. Can be longer form.",
     twitter: "Concise, punchy, engaging. 280 char limit per tweet, use threads for longer content.",
     instagram:
-      "Instagram is IMAGE-CENTRIC. The primary output is a strong VISUAL CONCEPT (image or carousel). You MUST provide visualPrompt—never null for Instagram. The main content is a SHORT caption (50–150 words); the caption supports the visual, the visual is the hero. Punchy, scannable, authentic; no long paragraphs.",
+      "Short caption (50–150 words). Punchy, scannable, authentic.",
     blog: "In-depth, well-structured, SEO-friendly.",
     facebook: "Community-oriented, shareable, conversational. Mix of value and connection.",
     github: "Technical, precise, documentation-style.",
@@ -436,7 +433,6 @@ ${productContext ? `\nProduct: ${productContext.name}. Audience: ${productContex
 ${productGuidance}
 ${strategyGuidance}
 ${platform && platformGuidance[platform] ? `\nPLATFORM GUIDANCE: ${platformGuidance[platform]}` : ""}
-${platform === "instagram" ? `\nINSTAGRAM: You MUST output a non-null visualPrompt (strong image or carousel concept). Keep content as a short caption (50–150 words).` : ""}
 ${brandVoice ? `\nBRAND VOICE OVERRIDE: ${brandVoice}` : ""}
 
 Generate the content in JSON format. Remember to follow the tone and anti-patterns from the marketing strategy. Include whyThisContent: one short sentence explaining why this content is suggested.`
@@ -452,54 +448,4 @@ Generate the content in JSON format. Remember to follow the tone and anti-patter
 
   const draft = JSON.parse(jsonMatch[0]) as ContentDraft
   return draft
-}
-
-export interface ImageSuggestion {
-  id: string
-  label: string
-  prompt: string
-}
-
-/**
- * Generate 3–5 image concept suggestions for a content draft.
- * Uses draft content + product context + strategy visual style.
- */
-export async function generateImageSuggestions(
-  draftContent: string,
-  draftTitle?: string,
-  productContext?: ProductContext,
-  visualStyle?: string
-): Promise<ImageSuggestion[]> {
-  const systemPrompt = `You are an image concept advisor for AuthorAI. Given a piece of content (post, blog, etc.), suggest 3–5 distinct image concepts that would reinforce the message. Each concept should have:
-- label: short human-readable name (e.g. "Before/after", "Product in use", "Data snapshot")
-- prompt: a concise DALL·E–style image description (1–2 sentences, no text overlays, professional and minimal)
-
-Output valid JSON only: an array of objects with "id", "label", "prompt". Use id like "1", "2", "3", etc.`
-
-  const productPart = productContext
-    ? `Product: ${productContext.name}. Audience: ${productContext.audience}.${productContext.audienceDetail ? ` Target: ${productContext.audienceDetail}.` : ""}`
-    : ""
-  const stylePart = visualStyle ? `Visual style to match: ${visualStyle}.` : ""
-  const userPrompt = `Content${draftTitle ? ` (title: ${draftTitle})` : ""}:
----
-${draftContent.slice(0, 2000)}
----
-${productPart}
-${stylePart}
-
-Return a JSON array of 3–5 image suggestions: [{"id":"1","label":"...","prompt":"..."}, ...]`
-
-  const model = getModelForTier("standard")
-  const responseText = await callAI(systemPrompt, userPrompt, model, 1500)
-
-  const arrayMatch = responseText.match(/\[[\s\S]*\]/)
-  if (!arrayMatch) {
-    throw new Error("No JSON array found in AI response")
-  }
-  const raw = JSON.parse(arrayMatch[0]) as { id?: string; label?: string; prompt?: string }[]
-  return (Array.isArray(raw) ? raw : []).slice(0, 5).map((item, i) => ({
-    id: String(item?.id ?? i + 1),
-    label: String(item?.label ?? "Concept " + (i + 1)),
-    prompt: String(item?.prompt ?? "").trim() || "Professional, minimal image matching the content",
-  }))
 }

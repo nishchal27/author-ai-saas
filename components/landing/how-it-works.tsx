@@ -33,7 +33,7 @@ const steps = [
     icon: FileText,
     title: "Generate Strategy-Guided Content",
     description:
-      "Create posts, blogs, threads, and visuals that follow your product's strategy. Content matches your tone, platforms, and avoids anti-patterns.",
+      "Create posts, blogs, and threads that follow your product's strategy. Content matches your tone, platforms, and avoids anti-patterns.",
     color: "from-green-500 to-green-600",
   },
   {

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
-import { Edit, Check, X, Image as ImageIcon, Calendar, AlertTriangle, Package, Target, BookOpen, Loader2, Sparkles, Copy, Search, Trash2, RefreshCw, Linkedin, Twitter, Instagram, FileText, Facebook } from "lucide-react"
+import { Edit, Check, X, Calendar, AlertTriangle, Package, Target, BookOpen, Loader2, Sparkles, Copy, Search, Trash2, RefreshCw, Linkedin, Twitter, Instagram, FileText, Facebook, ChevronDown, ChevronUp } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { format } from "date-fns"
 import { useState, useMemo, useEffect, useRef } from "react"
@@ -87,22 +87,6 @@ async function updateDraft(id: string, data: { content?: string; status?: string
   return res.json()
 }
 
-async function generateVisual(draftId: string, prompt?: string) {
-  const res = await fetch("/api/visuals/generate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ draftId, prompt }),
-  })
-  if (!res.ok) throw new Error("Failed to generate visual")
-  return res.json()
-}
-
-async function fetchImageSuggestions(draftId: string) {
-  const res = await fetch(`/api/visuals/suggestions?draftId=${draftId}`)
-  if (!res.ok) throw new Error("Failed to fetch suggestions")
-  return res.json()
-}
-
 async function repurposeContent(payload: {
   sourceDraftId: string
   audienceSegment?: string
@@ -157,6 +141,7 @@ export default function ContentPage() {
       router.replace(`/dashboard/content?platform=all&draftId=${draftIdParam}`)
     }
   }, [draftIdParam, platformParam, router])
+
   const [searchQuery, setSearchQuery] = useState("")
   const [contentFocusAudience, setContentFocusAudience] = useState<string>("all")
   const [contentFocusIntent, setContentFocusIntent] = useState<string>("all")
@@ -168,6 +153,12 @@ export default function ContentPage() {
     queryKey: ["drafts", contentScope],
     queryFn: () => fetchDrafts(contentScope),
   })
+
+  useEffect(() => {
+    if (draftIdParam && data?.drafts?.length) {
+      setExpandedContentDraftId(draftIdParam)
+    }
+  }, [draftIdParam, data?.drafts?.length])
 
   const { data: productsData } = useQuery({
     queryKey: ["products"],
@@ -199,11 +190,6 @@ export default function ContentPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState("")
-  const [imageSuggestionsDraftId, setImageSuggestionsDraftId] = useState<string | null>(null)
-  const [imageSuggestions, setImageSuggestions] = useState<{ id: string; label: string; prompt: string }[]>([])
-  const [imageSuggestionsLoading, setImageSuggestionsLoading] = useState(false)
-  const [selectedSuggestionId, setSelectedSuggestionId] = useState<string | null>(null)
-  const [customPromptOverride, setCustomPromptOverride] = useState("")
   const [repurposeDraftId, setRepurposeDraftId] = useState<string | null>(null)
   const [repurposeOpen, setRepurposeOpen] = useState(false)
   const [repurposeAudienceSegment, setRepurposeAudienceSegment] = useState<string>("non_technical")
@@ -215,6 +201,7 @@ export default function ContentPage() {
   const [regenerateDraftId, setRegenerateDraftId] = useState<string | null>(null)
   const [regenerateOpen, setRegenerateOpen] = useState(false)
   const [regenerateFeedback, setRegenerateFeedback] = useState("")
+  const [expandedContentDraftId, setExpandedContentDraftId] = useState<string | null>(null)
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) => updateDraft(id, data),
@@ -231,27 +218,6 @@ export default function ContentPage() {
       toast({
         title: "Error",
         description: error.message || "Failed to update draft",
-        variant: "destructive",
-      })
-    },
-  })
-
-  const visualMutation = useMutation({
-    mutationFn: ({ draftId, prompt }: { draftId: string; prompt?: string }) =>
-      generateVisual(draftId, prompt),
-    onSuccess: (_, { draftId }) => {
-      queryClient.invalidateQueries({ queryKey: ["drafts", contentScope] })
-      setImageSuggestionsDraftId((id) => (id === draftId ? null : id))
-      toast({
-        title: "Visual generated",
-        description: "Your visual has been created.",
-        variant: "success",
-      })
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to generate visual",
         variant: "destructive",
       })
     },
@@ -326,35 +292,6 @@ export default function ContentPage() {
       })
     },
   })
-
-  const handleGetImageSuggestions = (draftId: string) => {
-    setImageSuggestionsDraftId(draftId)
-    setImageSuggestions([])
-    setSelectedSuggestionId(null)
-    setCustomPromptOverride("")
-    setImageSuggestionsLoading(true)
-    fetchImageSuggestions(draftId)
-      .then((data) => {
-        setImageSuggestions(data.suggestions || [])
-        if (data.suggestions?.length) {
-          setSelectedSuggestionId(data.suggestions[0].id)
-        }
-      })
-      .catch(() => {
-        toast({
-          title: "Error",
-          description: "Failed to load image suggestions",
-          variant: "destructive",
-        })
-      })
-      .finally(() => setImageSuggestionsLoading(false))
-  }
-
-  const selectedPrompt =
-    imageSuggestionsDraftId && selectedSuggestionId
-      ? customPromptOverride.trim() ||
-        imageSuggestions.find((s) => s.id === selectedSuggestionId)?.prompt
-      : null
 
   const allDrafts = data?.drafts || []
 
@@ -1168,194 +1105,56 @@ export default function ContentPage() {
                   </div>
                 ) : (
                   <>
-                    <Tabs defaultValue="preview" className="w-full">
-                      <TabsList>
-                        <TabsTrigger value="preview">Preview</TabsTrigger>
-                        <TabsTrigger value="raw">Raw Content</TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="preview" className="mt-4">
-                        <ContentPreview
-                          content={draft.content}
-                          platform={draft.platform as any}
-                          title={draft.title || undefined}
-                          imageUrl={draft.visualUrl || undefined}
-                        />
-                      </TabsContent>
-                      <TabsContent value="raw" className="mt-4">
-                        <div className="prose prose-sm max-w-none">
-                          <p className="whitespace-pre-wrap">{draft.content}</p>
+                    <div className="rounded-lg border bg-muted/20 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedContentDraftId((id) => (id === draft.id ? null : draft.id))}
+                        className="w-full flex items-center justify-between gap-3 p-3 text-left hover:bg-muted/40 transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">Content</p>
+                          <p className="text-xs text-muted-foreground truncate mt-0.5">
+                            {expandedContentDraftId === draft.id
+                              ? "Click to collapse"
+                              : `${draft.content.slice(0, 80).replace(/\n/g, " ")}${draft.content.length > 80 ? "…" : ""}`}
+                          </p>
                         </div>
-                      </TabsContent>
-                    </Tabs>
-                    {draft.cta && (
-                      <div className="p-3 bg-muted rounded-md">
-                        <p className="text-sm font-medium">CTA: {draft.cta}</p>
-                      </div>
-                    )}
-                    {draft.visualUrl && (
-                      <div className="space-y-2">
-                        <img
-                          src={draft.visualUrl}
-                          alt="Generated visual"
-                          className="rounded-md border"
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleGetImageSuggestions(draft.id)}
-                          disabled={imageSuggestionsLoading}
-                        >
-                          <ImageIcon className="mr-2 h-4 w-4" />
-                          Replace image
-                        </Button>
-                      </div>
-                    )}
-                    {!draft.visualUrl && (
-                      <div className="space-y-3">
-                        {imageSuggestionsDraftId === draft.id ? (
-                          <>
-                            {imageSuggestionsLoading ? (
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Loading image suggestions…
-                              </div>
-                            ) : imageSuggestions.length > 0 ? (
-                              <>
-                                <p className="text-sm font-medium">Image suggestions</p>
-                                <div className="space-y-2">
-                                  {imageSuggestions.map((s) => (
-                                    <label
-                                      key={s.id}
-                                      className="flex items-start gap-2 p-2 rounded-md border cursor-pointer hover:bg-muted/50 has-[:checked]:bg-muted"
-                                    >
-                                      <input
-                                        type="radio"
-                                        name={`suggestion-${draft.id}`}
-                                        checked={selectedSuggestionId === s.id}
-                                        onChange={() => {
-                                          setSelectedSuggestionId(s.id)
-                                          setCustomPromptOverride("")
-                                        }}
-                                        className="mt-1"
-                                      />
-                                      <div className="flex-1 min-w-0">
-                                        <span className="text-sm font-medium">{s.label}</span>
-                                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                                          {s.prompt}
-                                        </p>
-                                      </div>
-                                    </label>
-                                  ))}
-                                </div>
-                                <div className="grid gap-2">
-                                  <Label className="text-xs text-muted-foreground">
-                                    Edit prompt (optional)
-                                  </Label>
-                                  <Textarea
-                                    placeholder="Override with your own image description"
-                                    value={customPromptOverride}
-                                    onChange={(e) => setCustomPromptOverride(e.target.value)}
-                                    rows={2}
-                                    className="text-sm"
-                                  />
-                                </div>
-                                <Button
-                                  size="sm"
-                                  onClick={() =>
-                                    visualMutation.mutate({
-                                      draftId: draft.id,
-                                      prompt: selectedPrompt || undefined,
-                                    })
-                                  }
-                                  disabled={visualMutation.isPending || !selectedPrompt}
-                                >
-                                  {visualMutation.isPending ? (
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <ImageIcon className="mr-2 h-4 w-4" />
-                                  )}
-                                  Generate image
-                                </Button>
-                              </>
-                            ) : (
-                              <div className="space-y-2">
-                                <p className="text-sm text-muted-foreground">
-                                  No suggestions. Enter your own image description:
-                                </p>
-                                <Textarea
-                                  placeholder="Describe the image you want..."
-                                  value={customPromptOverride}
-                                  onChange={(e) => setCustomPromptOverride(e.target.value)}
-                                  rows={2}
-                                  className="text-sm"
-                                />
-                                <Button
-                                  size="sm"
-                                  onClick={() =>
-                                    visualMutation.mutate({
-                                      draftId: draft.id,
-                                      prompt: customPromptOverride.trim() || undefined,
-                                    })
-                                  }
-                                  disabled={visualMutation.isPending || !customPromptOverride.trim()}
-                                >
-                                  {visualMutation.isPending ? (
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <ImageIcon className="mr-2 h-4 w-4" />
-                                  )}
-                                  Generate image
-                                </Button>
-                              </div>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setImageSuggestionsDraftId(null)
-                                setImageSuggestions([])
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                          </>
+                        {expandedContentDraftId === draft.id ? (
+                          <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         ) : (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleGetImageSuggestions(draft.id)}
-                              disabled={imageSuggestionsLoading}
-                            >
-                              {imageSuggestionsLoading && imageSuggestionsDraftId === draft.id ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              ) : (
-                                <Sparkles className="mr-2 h-4 w-4" />
-                              )}
-                              Get image suggestions
-                            </Button>
-                            {draft.visualPrompt && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  visualMutation.mutate({
-                                    draftId: draft.id,
-                                    prompt: draft.visualPrompt ?? undefined,
-                                  })
-                                }
-                                disabled={visualMutation.isPending}
-                                className="ml-2"
-                              >
-                                <ImageIcon className="mr-2 h-4 w-4" />
-                                Generate from AI prompt
-                              </Button>
-                            )}
-                          </>
+                          <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         )}
+                      </button>
+                      {expandedContentDraftId === draft.id && (
+                        <div className="border-t p-4 bg-background">
+                          <Tabs defaultValue="preview" className="w-full">
+                            <TabsList>
+                              <TabsTrigger value="preview">Preview</TabsTrigger>
+                              <TabsTrigger value="raw">Raw Content</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="preview" className="mt-4">
+                              <ContentPreview
+                                content={draft.content}
+                                platform={draft.platform as any}
+                                title={draft.title || undefined}
+                              />
+                            </TabsContent>
+                            <TabsContent value="raw" className="mt-4">
+                              <div className="prose prose-sm max-w-none">
+                                <p className="whitespace-pre-wrap">{draft.content}</p>
+                              </div>
+                            </TabsContent>
+                          </Tabs>
+                        </div>
+                      )}
+                    </div>
+                    {draft.cta && (
+                      <div className="p-3 bg-muted/50 rounded-lg border text-sm">
+                        <p className="font-medium text-muted-foreground">CTA</p>
+                        <p>{draft.cta}</p>
                       </div>
                     )}
-                    <div className="flex gap-2 pt-4 border-t">
+                    <div className="flex flex-wrap gap-2 pt-4 mt-4 border-t">
                       <Button
                         size="sm"
                         variant="outline"

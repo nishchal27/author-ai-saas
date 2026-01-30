@@ -10,7 +10,6 @@ interface ContentPreviewProps {
   content: string
   platform?: SupportedPlatform | string
   title?: string
-  imageUrl?: string
   className?: string
 }
 
@@ -34,7 +33,6 @@ export function ContentPreview({
   content,
   platform,
   title,
-  imageUrl,
   className,
 }: ContentPreviewProps) {
   const platformKey = platform?.toLowerCase?.() ?? ""
@@ -72,15 +70,6 @@ export function ContentPreview({
       <CardContent className="space-y-4">
         {title && (
           <h3 className="text-xl font-semibold">{title}</h3>
-        )}
-        {imageUrl && (
-          <div className="rounded-lg overflow-hidden border">
-            <img
-              src={imageUrl}
-              alt="Preview"
-              className="w-full h-auto"
-            />
-          </div>
         )}
         <div className={cn(
           "prose prose-sm max-w-none",

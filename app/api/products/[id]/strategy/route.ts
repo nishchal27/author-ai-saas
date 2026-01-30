@@ -42,12 +42,14 @@ export async function GET(
       return NextResponse.json({ error: "No strategy found" }, { status: 404 })
     }
 
-    // Parse stored strategy
+    // Parse stored strategy (visualStyle optional for backward compat)
     const rawStrategy = {
       platforms: JSON.parse(product.strategy.platforms),
       contentTypes: JSON.parse(product.strategy.contentTypes),
       tone: JSON.parse(product.strategy.tone),
-      visualStyle: JSON.parse(product.strategy.visualStyle),
+      ...(product.strategy.visualStyle
+        ? { visualStyle: JSON.parse(product.strategy.visualStyle) }
+        : {}),
       cadence: JSON.parse(product.strategy.cadence),
       proofTypes: JSON.parse(product.strategy.proofTypes),
       antiPatterns: JSON.parse(product.strategy.antiPatterns),
@@ -121,7 +123,7 @@ export async function POST(
         platforms: JSON.stringify(strategyOutput.platforms),
         contentTypes: JSON.stringify(strategyOutput.contentTypes),
         tone: JSON.stringify(strategyOutput.tone),
-        visualStyle: JSON.stringify(strategyOutput.visualStyle),
+        visualStyle: JSON.stringify(strategyOutput.visualStyle ?? { style: "diagram-only" }),
         cadence: JSON.stringify(strategyOutput.cadence),
         proofTypes: JSON.stringify(strategyOutput.proofTypes),
         antiPatterns: JSON.stringify(strategyOutput.antiPatterns),
@@ -135,7 +137,7 @@ export async function POST(
         platforms: JSON.stringify(strategyOutput.platforms),
         contentTypes: JSON.stringify(strategyOutput.contentTypes),
         tone: JSON.stringify(strategyOutput.tone),
-        visualStyle: JSON.stringify(strategyOutput.visualStyle),
+        visualStyle: JSON.stringify(strategyOutput.visualStyle ?? { style: "diagram-only" }),
         cadence: JSON.stringify(strategyOutput.cadence),
         proofTypes: JSON.stringify(strategyOutput.proofTypes),
         antiPatterns: JSON.stringify(strategyOutput.antiPatterns),
