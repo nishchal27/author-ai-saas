@@ -2,29 +2,32 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Linkedin, Twitter, Instagram, FileText } from "lucide-react"
+import { Linkedin, Twitter, Instagram, FileText, Facebook } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { SupportedPlatform } from "@/lib/constants"
 
 interface ContentPreviewProps {
   content: string
-  platform?: "linkedin" | "twitter" | "instagram" | "blog"
+  platform?: SupportedPlatform | string
   title?: string
   imageUrl?: string
   className?: string
 }
 
-const platformIcons = {
+const platformIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   linkedin: Linkedin,
   twitter: Twitter,
   instagram: Instagram,
   blog: FileText,
+  facebook: Facebook,
 }
 
-const platformColors = {
+const platformColors: Record<string, string> = {
   linkedin: "bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800",
   twitter: "bg-sky-50 border-sky-200 dark:bg-sky-950 dark:border-sky-800",
   instagram: "bg-pink-50 border-pink-200 dark:bg-pink-950 dark:border-pink-800",
   blog: "bg-gray-50 border-gray-200 dark:bg-gray-950 dark:border-gray-800",
+  facebook: "bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800",
 }
 
 export function ContentPreview({
@@ -34,11 +37,12 @@ export function ContentPreview({
   imageUrl,
   className,
 }: ContentPreviewProps) {
-  const Icon = platform ? platformIcons[platform] : FileText
-  const platformColor = platform ? platformColors[platform] : ""
+  const platformKey = platform?.toLowerCase?.() ?? ""
+  const Icon = platformKey ? (platformIcons[platformKey] ?? FileText) : FileText
+  const platformColor = platformKey ? (platformColors[platformKey] ?? "") : ""
 
   const characterCount = content.length
-  const isTwitter = platform === "twitter"
+  const isTwitter = platformKey === "twitter"
   const isOverLimit = isTwitter && characterCount > 280
 
   return (
@@ -48,7 +52,7 @@ export function ContentPreview({
           <div className="flex items-center gap-2">
             <Icon className="h-5 w-5" />
             <CardTitle className="text-lg">
-              {platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : "Preview"}
+              {platformKey ? platformKey.charAt(0).toUpperCase() + platformKey.slice(1) : "Preview"}
             </CardTitle>
           </div>
           {isTwitter && (
@@ -58,10 +62,11 @@ export function ContentPreview({
           )}
         </div>
         <CardDescription>
-          {platform === "linkedin" && "Professional, thoughtful content"}
-          {platform === "twitter" && "Concise, engaging post"}
-          {platform === "instagram" && "Visual-first content"}
-          {platform === "blog" && "In-depth article"}
+          {platformKey === "linkedin" && "Professional, thoughtful content"}
+          {platformKey === "twitter" && "Concise, engaging post"}
+          {platformKey === "instagram" && "Visual-first content"}
+          {platformKey === "blog" && "In-depth article"}
+          {platformKey === "facebook" && "Community-oriented, shareable content"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -79,10 +84,11 @@ export function ContentPreview({
         )}
         <div className={cn(
           "prose prose-sm max-w-none",
-          platform === "twitter" && "text-sm leading-relaxed",
-          platform === "linkedin" && "text-base leading-relaxed",
-          platform === "instagram" && "text-base leading-relaxed",
-          platform === "blog" && "prose-lg"
+          platformKey === "twitter" && "text-sm leading-relaxed",
+          platformKey === "linkedin" && "text-base leading-relaxed",
+          platformKey === "instagram" && "text-base leading-relaxed",
+          platformKey === "blog" && "prose-lg",
+          platformKey === "facebook" && "text-base leading-relaxed"
         )}>
           <div className="whitespace-pre-wrap break-words">{content}</div>
         </div>

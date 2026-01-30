@@ -1,6 +1,9 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
-import { generateContent, ProductContext, StrategyContext } from "@/lib/claude"
+import { ProductContext, StrategyContext } from "@/lib/claude"
+import type { AudienceSegment, ContentIntent, Persona } from "@/lib/content-intelligence"
+import { runContentEngine } from "@/lib/content-engine"
+import { evaluateContent } from "@/lib/content-evaluation"
 import { NextResponse } from "next/server"
 
 export async function POST(req: Request) {
@@ -11,11 +14,21 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { insightId, type, platform, productId } = body
+    const {
+      insightId,
+      type: typeOverride,
+      platform: platformOverride,
+      productId,
+      intent,
+      audienceSegment: audienceSegmentOverride,
+      persona: personaOverride,
+      reason,
+      context,
+    } = body
 
-    if (!insightId || !type) {
+    if (!insightId) {
       return NextResponse.json(
-        { error: "Insight ID and type are required" },
+        { error: "Insight ID is required" },
         { status: 400 }
       )
     }
@@ -48,31 +61,34 @@ export async function POST(req: Request) {
     let productContext: ProductContext | undefined
     let strategyContext: StrategyContext | undefined
 
+    let product: { audience: string; type: string; name?: string; strategy: { platforms: string } | null } | null = null
+
     if (targetProductId) {
-      const product = await db.product.findFirst({
+      const productRow = await db.product.findFirst({
         where: { id: targetProductId, userId: user.id },
         include: { strategy: true },
       })
 
-      if (product) {
+      if (productRow) {
+        product = productRow
         productContext = {
-          name: product.name,
-          type: product.type,
-          industry: product.industry,
-          audience: product.audience,
-          stage: product.stage,
-          description: product.description || undefined,
-          audienceDetail: product.audienceDetail ?? undefined,
+          name: productRow.name,
+          type: productRow.type,
+          industry: productRow.industry,
+          audience: productRow.audience,
+          stage: productRow.stage,
+          description: productRow.description || undefined,
+          audienceDetail: productRow.audienceDetail ?? undefined,
         }
 
-        if (product.strategy) {
+        if (productRow.strategy) {
           try {
             strategyContext = {
-              tone: JSON.parse(product.strategy.tone),
-              platforms: JSON.parse(product.strategy.platforms),
-              proofTypes: JSON.parse(product.strategy.proofTypes),
-              cadence: JSON.parse(product.strategy.cadence),
-              antiPatterns: JSON.parse(product.strategy.antiPatterns),
+              tone: JSON.parse(productRow.strategy.tone),
+              platforms: JSON.parse(productRow.strategy.platforms),
+              proofTypes: JSON.parse(productRow.strategy.proofTypes),
+              cadence: JSON.parse(productRow.strategy.cadence),
+              antiPatterns: JSON.parse(productRow.strategy.antiPatterns),
             }
           } catch (e) {
             console.error("Error parsing strategy:", e)
@@ -81,28 +97,54 @@ export async function POST(req: Request) {
       }
     }
 
-    const brandVoice = user.brandVoice ? JSON.parse(user.brandVoice).tone : undefined
+    let brandVoice: string | undefined
+    try {
+      const bv = (user as any).brandVoice
+      brandVoice = bv ? JSON.parse(bv).tone : undefined
+    } catch {
+      brandVoice = undefined
+    }
     const userTier = (user.tier === "premium" ? "premium" : "standard") as "standard" | "premium"
+    const founderBio = (user as any).founderBio ?? null
+    let techStack: string | null = null
+    const productWithTech = product as { techStackJson?: string | null } | null
+    if (productWithTech?.techStackJson) {
+      try {
+        const arr = JSON.parse(productWithTech.techStackJson) as { name: string; version?: string; note?: string }[]
+        techStack = arr.map((t) => [t.name, t.version, t.note].filter(Boolean).join(" — ")).join("; ")
+      } catch {}
+    }
 
-    // Generate content with product strategy awareness
-    const contentData = await generateContent(
-      {
-        coreProblem: insight.coreProblem,
-        solution: insight.solution,
-        audience: insight.audience,
-        whyMatters: insight.whyMatters,
-        impact: insight.impact || undefined,
-        themes: insight.themes ? JSON.parse(insight.themes) : undefined,
+    const intentForDecision = (intent as ContentIntent) || "product_trust"
+
+    const { contentData, decision, type, platform } = await runContentEngine({
+      context: {
+        insight: {
+          coreProblem: insight.coreProblem,
+          solution: insight.solution,
+          audience: insight.audience,
+          whyMatters: insight.whyMatters,
+          impact: insight.impact,
+          themes: insight.themes,
+        },
+        product,
+        productContext,
+        strategyContext,
+        founderBio,
+        techStack,
+        brandVoice,
+        userTier,
       },
-      type as "post" | "blog" | "carousel" | "thread" | "caption",
-      platform as "linkedin" | "twitter" | "instagram" | "blog" | undefined,
-      brandVoice,
-      userTier,
-      productContext,
-      strategyContext
-    )
+      typeOverride,
+      platformOverride,
+      intent: intentForDecision,
+      audienceSegment: audienceSegmentOverride as AudienceSegment | undefined,
+      persona: personaOverride as Persona | undefined,
+      reason,
+      contextExtra: context,
+    })
 
-    // Save draft with product link
+    // Save draft with product link, intent/reason/context, and content intelligence fields
     const draft = await db.contentDraft.create({
       data: {
         userId: user.id,
@@ -115,8 +157,36 @@ export async function POST(req: Request) {
         visualPrompt: contentData.visualPrompt || null,
         cta: contentData.cta || null,
         status: "draft",
+        intent: intentForDecision,
+        generationReason: reason || null,
+        audienceContext: context || null,
+        whyThisContent: contentData.whyThisContent || null,
+        audienceSegment: decision.audienceSegment,
+        persona: decision.persona,
+        suggestedFormat: decision.suggestedFormat,
+        suggestedPlatform: decision.suggestedPlatform,
       },
     })
+
+    // Evaluation layer: rate draft for platform and goal fit
+    let evaluationScore: number | null = null
+    let evaluationNote: string | null = null
+    try {
+      const evaluation = await evaluateContent(
+        contentData.content,
+        platform || "linkedin",
+        intentForDecision,
+        reason ?? context ?? undefined
+      )
+      evaluationScore = evaluation.score
+      evaluationNote = evaluation.note || null
+      await db.contentDraft.update({
+        where: { id: draft.id },
+        data: { evaluationScore, evaluationNote },
+      })
+    } catch (e) {
+      console.error("Content evaluation failed:", e)
+    }
 
     // Check if platform is recommended
     let platformWarning: string | null = null
@@ -129,15 +199,23 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ 
-      draft,
+    return NextResponse.json({
+      draft: {
+        ...draft,
+        evaluationScore: evaluationScore ?? draft.evaluationScore,
+        evaluationNote: evaluationNote ?? draft.evaluationNote,
+      },
       platformWarning,
       strategyApplied: !!strategyContext,
+      suggestedFormat: decision.suggestedFormat,
+      suggestedPlatform: decision.suggestedPlatform,
+      reasoningSummary: decision.reasoningSummary,
     })
   } catch (error) {
     console.error("Error generating content:", error)
+    const message = error instanceof Error ? error.message : "Failed to generate content"
     return NextResponse.json(
-      { error: "Failed to generate content" },
+      { error: "Failed to generate content", details: message },
       { status: 500 }
     )
   }

@@ -14,7 +14,6 @@ import {
   Linkedin,
   Twitter,
   Instagram,
-  Youtube,
   Github,
   Mail,
   FileText,
@@ -87,12 +86,11 @@ const PLATFORM_ICONS: Record<string, React.ComponentType<{ className?: string }>
   linkedin: Linkedin,
   twitter: Twitter,
   instagram: Instagram,
-  youtube: Youtube,
   github: Github,
   email: Mail,
   hackernews: FileText,
   facebook: MessageSquare,
-  tiktok: Image,
+  blog: FileText,
   internal_docs: FileText,
 }
 

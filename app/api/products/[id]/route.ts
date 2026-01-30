@@ -81,7 +81,16 @@ export async function PATCH(
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 
-    const { name, type, industry, audience, audienceDetail, stage, salesMotion, description, website, competitors, isActive } = body
+    const { name, type, industry, audience, audienceDetail, stage, salesMotion, description, website, competitors, isActive, techStack } = body
+
+    const techStackJson =
+      techStack !== undefined
+        ? Array.isArray(techStack)
+          ? JSON.stringify(techStack)
+          : typeof techStack === "string"
+            ? techStack
+            : undefined
+        : undefined
 
     const product = await prisma.product.update({
       where: { id },
@@ -97,6 +106,7 @@ export async function PATCH(
         ...(website !== undefined && { website }),
         ...(competitors !== undefined && { competitors }),
         ...(isActive !== undefined && { isActive }),
+        ...(techStackJson !== undefined && { techStackJson }),
       },
       include: {
         strategy: true,

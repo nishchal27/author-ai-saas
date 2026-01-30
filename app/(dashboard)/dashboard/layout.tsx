@@ -6,6 +6,7 @@ import { UserButton } from "@clerk/nextjs"
 import { Target } from "lucide-react"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { NavLinks } from "@/components/navigation/nav-links"
+import { DashboardProductScope } from "@/components/navigation/dashboard-product-scope"
 
 export default async function DashboardLayout({
   children,
@@ -62,6 +63,7 @@ export default async function DashboardLayout({
               <Target className="h-5 w-5 text-primary" />
               <span className="text-xl font-semibold">AuthorAI</span>
             </Link>
+            <DashboardProductScope />
             <NavLinks />
           </div>
           <UserButton />

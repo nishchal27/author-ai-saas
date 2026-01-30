@@ -137,9 +137,9 @@ const STRATEGY_PATTERNS: Record<ProductType, Partial<MarketingStrategyOutput>> =
   
   course: {
     platforms: [
-      { platform: "youtube", priority: "primary", reasoning: "Teaching content performs best as video" },
       { platform: "twitter", priority: "primary", reasoning: "Mini-lessons and threads build following" },
-      { platform: "linkedin", priority: "secondary", reasoning: "Career-focused learners are here" },
+      { platform: "linkedin", priority: "primary", reasoning: "Career-focused learners are here" },
+      { platform: "blog", priority: "secondary", reasoning: "In-depth lessons establish authority" },
       { platform: "instagram", priority: "avoid", reasoning: "Not ideal for educational content" },
     ],
     contentTypes: [
@@ -164,7 +164,6 @@ const STRATEGY_PATTERNS: Record<ProductType, Partial<MarketingStrategyOutput>> =
       { platform: "linkedin", priority: "primary", reasoning: "Professional audience, trust-building platform" },
       { platform: "twitter", priority: "secondary", reasoning: "Thought leadership and insights" },
       { platform: "instagram", priority: "avoid", reasoning: "Too casual for professional services" },
-      { platform: "tiktok", priority: "avoid", reasoning: "Wrong audience and format" },
     ],
     contentTypes: [
       { type: "post", recommended: true, reasoning: "Opinionated insights build authority" },
@@ -187,7 +186,7 @@ const STRATEGY_PATTERNS: Record<ProductType, Partial<MarketingStrategyOutput>> =
   physical: {
     platforms: [
       { platform: "instagram", priority: "primary", reasoning: "Visual products need visual platforms" },
-      { platform: "tiktok", priority: "primary", reasoning: "Short-form video drives discovery" },
+      { platform: "facebook", priority: "primary", reasoning: "Community and discovery for lifestyle products" },
       { platform: "linkedin", priority: "avoid", reasoning: "Wrong audience and format" },
     ],
     contentTypes: [

@@ -1,65 +1,31 @@
 "use client"
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { FileText, Sparkles } from "lucide-react"
+import { FileText } from "lucide-react"
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
 import { EmptyInsights } from "@/components/empty-states/empty-insights"
-import { useToast } from "@/hooks/use-toast"
 import { SearchFilter } from "@/components/search-filter"
 import { useState, useMemo } from "react"
 import { InsightSkeleton } from "@/components/loading/insight-skeleton"
 
-async function fetchInsights() {
-  const res = await fetch("/api/insights")
+async function fetchInsights(scope: "active" | "all" = "active") {
+  const res = await fetch(`/api/insights?scope=${scope}`)
   if (!res.ok) throw new Error("Failed to fetch insights")
-  return res.json()
-}
-
-async function generateContent(insightId: string, type: string, platform?: string) {
-  const res = await fetch("/api/content/generate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ insightId, type, platform }),
-  })
-  if (!res.ok) throw new Error("Failed to generate content")
   return res.json()
 }
 
 export default function InsightsPage() {
   const router = useRouter()
-  const queryClient = useQueryClient()
-  const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  
+
   const { data, isLoading } = useQuery({
     queryKey: ["insights"],
-    queryFn: fetchInsights,
-  })
-
-  const generateMutation = useMutation({
-    mutationFn: ({ insightId, type, platform }: { insightId: string; type: string; platform?: string }) =>
-      generateContent(insightId, type, platform),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["drafts"] })
-      toast({
-        title: "Content generated",
-        description: "Your content draft has been created.",
-        variant: "success",
-      })
-      router.push("/dashboard/content")
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to generate content",
-        variant: "destructive",
-      })
-    },
+    queryFn: () => fetchInsights("active"),
   })
 
   const allInsights = data?.insights || []
@@ -155,31 +121,10 @@ export default function InsightsPage() {
                 <div className="flex gap-2 pt-4 border-t">
                   <Button
                     size="sm"
-                    onClick={() =>
-                      generateMutation.mutate({
-                        insightId: insight.id,
-                        type: "post",
-                        platform: "linkedin",
-                      })
-                    }
-                    disabled={generateMutation.isPending}
+                    onClick={() => router.push(`/dashboard/content/create?insightId=${insight.id}`)}
                   >
                     <FileText className="mr-2 h-4 w-4" />
-                    Generate Post
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      generateMutation.mutate({
-                        insightId: insight.id,
-                        type: "blog",
-                      })
-                    }
-                    disabled={generateMutation.isPending}
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    Generate Blog
+                    Use in Content
                   </Button>
                 </div>
               </CardContent>
@@ -205,6 +150,7 @@ export default function InsightsPage() {
           )}
         </div>
       )}
+
     </div>
   )
 }

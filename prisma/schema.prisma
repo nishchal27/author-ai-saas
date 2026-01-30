@@ -22,6 +22,9 @@ model User {
   // Active product context
   activeProductId String?
 
+  // Build in public: founder bio (who you are, what you share)
+  founderBio String? @db.Text
+
   // Relations
   products      Product[]
   integrations  Integration[]
@@ -54,7 +57,8 @@ model Product {
   description String?  @db.Text  // Brief product description
   website     String?            // Product website/landing page
   competitors String?  @db.Text  // Known competitors (helps AI understand positioning)
-  
+  techStackJson String? @db.Text  // JSON array of { name, version?, note? } for build in public
+
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -176,7 +180,7 @@ model ContentDraft {
   productId   String?  // Links content to specific product (inherits strategy)
   insightId   String
   type        String   // "post", "blog", "carousel", "thread", "caption"
-  platform    String?  // "linkedin", "twitter", "instagram", "blog"
+  platform    String?  // "linkedin", "twitter", "instagram", "blog", "facebook", etc.
   title       String?
   content     String   @db.Text
   visualPrompt String? @db.Text
@@ -189,6 +193,29 @@ model ContentDraft {
   publishedAt DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Intent, reason, and context (why / for whom this content)
+  intent           String?  // Content intent taxonomy: engineering_credibility, build_in_public, etc.
+  generationReason String?  @db.Text // Why we're creating this content
+  audienceContext  String?  @db.Text // Optional context for audience
+  whyThisContent   String?  @db.Text // AI-generated one-liner: why we suggest this content
+
+  // Content Intelligence: audience segment and persona (who / how)
+  audienceSegment String?  // "non_technical" | "technical"
+  persona         String?  // "founder_engineer" | "product_company"
+
+  // Engine suggestions (format/platform from decision pipeline; user can override via type/platform)
+  suggestedFormat   String?  // e.g. post, blog, carousel
+  suggestedPlatform String?  // platform recommended by engine
+
+  // Evaluation layer (post-generation quality check)
+  evaluationScore Float?   // 0-1 score
+  evaluationNote  String? @db.Text  // One sentence: why this fits platform/goal
+
+  // Repurposing lineage (optional)
+  sourceDraftId String?  // When this draft was created by repurposing another
+  sourceDraft   ContentDraft?  @relation("RepurposeLineage", fields: [sourceDraftId], references: [id], onDelete: SetNull)
+  repurposedDrafts ContentDraft[] @relation("RepurposeLineage")
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
