@@ -138,7 +138,6 @@ const STRATEGY_PATTERNS: Record<ProductType, Partial<MarketingStrategyOutput>> =
       { platform: "twitter", priority: "primary", reasoning: "Mini-lessons and threads build following" },
       { platform: "linkedin", priority: "primary", reasoning: "Career-focused learners are here" },
       { platform: "blog", priority: "secondary", reasoning: "In-depth lessons establish authority" },
-      { platform: "instagram", priority: "avoid", reasoning: "Not ideal for educational content" },
     ],
     contentTypes: [
       { type: "thread", recommended: true, reasoning: "Teaching threads show expertise" },
@@ -161,7 +160,6 @@ const STRATEGY_PATTERNS: Record<ProductType, Partial<MarketingStrategyOutput>> =
     platforms: [
       { platform: "linkedin", priority: "primary", reasoning: "Professional audience, trust-building platform" },
       { platform: "twitter", priority: "secondary", reasoning: "Thought leadership and insights" },
-      { platform: "instagram", priority: "avoid", reasoning: "Too casual for professional services" },
     ],
     contentTypes: [
       { type: "post", recommended: true, reasoning: "Opinionated insights build authority" },
@@ -183,7 +181,6 @@ const STRATEGY_PATTERNS: Record<ProductType, Partial<MarketingStrategyOutput>> =
   
   physical: {
     platforms: [
-      { platform: "instagram", priority: "primary", reasoning: "Visual products need visual platforms" },
       { platform: "facebook", priority: "primary", reasoning: "Community and discovery for lifestyle products" },
       { platform: "linkedin", priority: "avoid", reasoning: "Wrong audience and format" },
     ],
@@ -236,7 +233,6 @@ const STRATEGY_PATTERNS: Record<ProductType, Partial<MarketingStrategyOutput>> =
       { platform: "hackernews", priority: "primary", reasoning: "Technical community discovery" },
       { platform: "twitter", priority: "secondary", reasoning: "Dev community engagement" },
       { platform: "linkedin", priority: "avoid", reasoning: "Too sales-focused for infra products" },
-      { platform: "instagram", priority: "avoid", reasoning: "Completely wrong audience" },
     ],
     contentTypes: [
       { type: "blog", recommended: true, reasoning: "Technical deep dives" },
@@ -325,7 +321,6 @@ function refineForAudience(
       { platform: "github", priority: "primary", reasoning: "Build in public, show the work" },
       { platform: "hackernews", priority: "secondary", reasoning: "Technical discovery" },
       { platform: "linkedin", priority: "avoid", reasoning: "Developers trust competence, not sales posts" },
-      { platform: "instagram", priority: "avoid", reasoning: "Wrong platform entirely" },
     ]
     refined.tone = {
       style: "Honest, technical, low-hype",

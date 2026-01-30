@@ -9,7 +9,7 @@ import { inngest } from "@/lib/inngest"
  * {
  *   "crons": [{
  *     "path": "/api/cron/publish",
- *     "schedule": "*/5 * * * *"
+ *     "schedule": "*\/5 * * * *"
  *   }]
  * }
  * 

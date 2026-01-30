@@ -134,7 +134,7 @@ export const checkScheduledContent = inngest.createFunction(
               platform: schedule.platform,
               accessToken: integration.accessToken,
             },
-            ts: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
+            ts: Date.now() + 5 * 60 * 1000, // 5 minutes from now (Unix ms)
           })
 
           return { scheduleId: schedule.id, status: "published", externalId }
@@ -232,10 +232,13 @@ export const syncPublishedAnalytics = inngest.createFunction(
           const engagement = analytics.likes + analytics.comments + analytics.shares
           const engagementRate = analytics.views > 0 ? (engagement / analytics.views) * 100 : 0
 
-          // Update or create analytics
-          if (schedule.analytics) {
+          // Update or create analytics (schedule has many; update most recent if any)
+          const latestAnalytics = schedule.analytics.length > 0
+            ? schedule.analytics.sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime())[0]
+            : null
+          if (latestAnalytics) {
             await db.analytics.update({
-              where: { id: schedule.analytics.id },
+              where: { id: latestAnalytics.id },
               data: {
                 views: analytics.views,
                 likes: analytics.likes,
@@ -474,7 +477,7 @@ export const retryFailedPublishes = inngest.createFunction(
                 platform: schedule.platform,
                 accessToken: integration.accessToken,
               },
-              ts: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
+              ts: Date.now() + 5 * 60 * 1000, // 5 minutes from now (Unix ms)
             })
 
             return { scheduleId: schedule.id, status: "retried", externalId }

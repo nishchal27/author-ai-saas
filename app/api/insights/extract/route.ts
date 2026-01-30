@@ -62,7 +62,8 @@ export async function POST(req: Request) {
       }
     }
 
-    const brandVoice = user.brandVoice ? JSON.parse(user.brandVoice).tone : undefined
+    const bv = (user as { brandVoice?: string | null }).brandVoice
+    const brandVoice = bv ? JSON.parse(bv).tone : undefined
     const userTier = (user.tier === "premium" ? "premium" : "standard") as "standard" | "premium"
 
     // Extract insight with product context

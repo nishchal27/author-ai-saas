@@ -107,7 +107,7 @@ export async function runContentEngine(input: ContentEngineInput): Promise<Conte
   const contentData = await generateContent(
     insightForExtraction,
     type as "post" | "blog" | "carousel" | "thread" | "caption",
-    platform as "linkedin" | "twitter" | "instagram" | "blog" | "facebook",
+    platform as "linkedin" | "twitter" | "blog" | "facebook",
     brandVoice,
     userTier,
     productContext,

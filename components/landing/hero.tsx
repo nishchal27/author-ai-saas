@@ -103,9 +103,6 @@ export function Hero() {
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm line-through">
                   LinkedIn sales
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm line-through">
-                  Instagram
-                </div>
               </div>
             </div>
           </div>

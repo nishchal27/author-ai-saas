@@ -27,7 +27,7 @@ const productExamples = [
   {
     product: "D2C Physical Product",
     recommendations: [
-      { text: "Instagram + Facebook", good: true },
+      { text: "Facebook", good: true },
       { text: "Lifestyle videos", good: true },
       { text: "Long text explanations", good: false },
       { text: "LinkedIn presence", good: false },

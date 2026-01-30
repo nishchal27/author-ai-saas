@@ -294,7 +294,8 @@ export default function CalendarPage() {
                   <SelectContent>
                     <SelectItem value="linkedin">LinkedIn</SelectItem>
                     <SelectItem value="twitter">Twitter/X</SelectItem>
-                    <SelectItem value="instagram">Instagram</SelectItem>
+                    <SelectItem value="facebook">Facebook</SelectItem>
+                    <SelectItem value="blog">Blog</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
