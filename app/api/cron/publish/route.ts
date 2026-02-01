@@ -4,15 +4,10 @@ import { inngest } from "@/lib/inngest"
 /**
  * Legacy cron job endpoint - now triggers Inngest function
  * This endpoint is kept for backward compatibility
- * 
- * Vercel Cron config (vercel.json):
- * {
- *   "crons": [{
- *     "path": "/api/cron/publish",
- *     "schedule": "*\/5 * * * *"
- *   }]
- * }
- * 
+ *
+ * Vercel Cron config (vercel.json): crons[].path = "/api/cron/publish",
+ * schedule = every 5 minutes (cron: 5 * * * *).
+ *
  * Note: Inngest handles scheduling automatically via cron functions.
  * This endpoint can trigger Inngest manually if needed.
  */

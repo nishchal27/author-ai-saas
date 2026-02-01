@@ -29,6 +29,7 @@
 - [ ] Test LinkedIn publishing
 - [ ] Test Twitter publishing
 - [ ] Test automated publishing (cron job)
+- [ ] Test visual generation (workflow/before_after diagrams; supported platforms: LinkedIn, Twitter, Facebook, Blog)
 - [ ] Test error scenarios
 
 #### Security
