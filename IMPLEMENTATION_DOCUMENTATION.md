@@ -56,7 +56,8 @@ AuthorAI follows a **product-first, layered architecture** with clear separation
 │                  Business Logic Layer                   │
 │  - Product-Aware Insight Agent (Claude)                │
 │  - Strategy-Guided Content Agent (Claude)             │
-│  - Visual Generation (DALL·E)                          │
+│  - Visual Generation (diagram-first: programmatic     │
+│    workflow/before_after SVG + DALL·E fallback)       │
 │  - GitHub Integration                                   │
 │  - Social Media Publishing                              │
 └─────────────────────────────────────────────────────────┘
@@ -118,7 +119,7 @@ AuthorAI follows a **product-first, layered architecture** with clear separation
 
 ### AI & Integrations
 - **Reasoning & Content**: Anthropic Claude 3.5 Sonnet
-- **Image Generation**: OpenAI DALL·E 3
+- **Image Generation**: Diagram-first (programmatic workflow/before_after SVG via `lib/diagram.ts`, sharp for PNG; DALL·E 3 fallback for other types)
 - **GitHub**: Octokit REST API
 - **LinkedIn**: LinkedIn API v2
 - **Twitter**: Twitter API v2
@@ -555,29 +556,44 @@ Success Toast → Redirect to Content Page
 - `platformWarning` (if platform is not recommended)
 - `strategyApplied` boolean flag
 
-### 4. Visual Generation
+### 4. Visual Generation (Diagram-First)
 
-#### DALL·E Integration
+**Supported platforms for content**: LinkedIn, Twitter, Facebook, Blog (Instagram removed).
+
+**Image strategy**: Diagram-first, message-driven. Images must explain something (workflows, before/after, flows). No decorative or stock-style imagery.
+
+#### Programmatic diagrams
+**Location**: `lib/diagram.ts`
+
+**Implementation**:
+- **Workflow diagrams** (`imageType: workflow_diagram`): AI parses prompt into steps → `renderWorkflowDiagramSvg()` (dark bg, light boxes, arrows, real text) → SVG to PNG via sharp → data URL stored on draft.
+- **Before/after diagrams** (`imageType: before_after`): AI parses prompt into left/right labels → `renderBeforeAfterDiagramSvg()` (two panels, arrow) → SVG to PNG → data URL.
+- **Style**: Clean by default (system font, solid strokes); optional sketch style (hand-drawn font, dashed strokes).
+- **APIs**: `getWorkflowStepsFromPrompt()`, `getBeforeAfterFromPrompt()`, `renderWorkflowDiagramSvg()`, `renderBeforeAfterDiagramSvg()`, `svgToPngBuffer()`.
+
+#### Image suggestions
+**Location**: `lib/claude.ts` → `generateImageSuggestions()`, `GET /api/visuals/suggestions?draftId=...`
+
+**Implementation**:
+- Decision flow: Audience → Content Intent → Image Intent → Image Type → Visual Style. Platform last.
+- Suggests 3–5 message-driven options; prefers `workflow_diagram` and `before_after`. Each suggestion has `id`, `label`, `prompt`, `intent`, `imageType`.
+- Anti-goals: no generic people, offices, or decorative art.
+
+#### DALL·E (last resort)
 **Location**: `lib/openai.ts` → `generateVisual()`
 
 **Implementation**:
-- Uses OpenAI DALL·E 3 API
-- Takes visual prompt from content draft
-- Generates 1024x1024 image
-- Returns image URL
-- Stores URL in draft record
+- Used when `imageType` is not `workflow_diagram` or `before_after` (e.g. conceptual_metaphor, outcome_visual).
+- Prompt constrained to hand-drawn-style diagram only (whiteboard/notebook), no poster or illustration.
+- 1024x1024, returns image URL.
 
-**Visual Prompt Enhancement**:
-- Adds brand style preferences
-- Ensures "No text overlays"
-- Professional, minimalistic design
-
-**API Endpoint**: `POST /api/visuals/generate`
+**API Endpoints**: `GET /api/visuals/suggestions`, `POST /api/visuals/generate` (body: `draftId`, `prompt`, `imageType` optional).
 
 **Flow**:
 ```
-Draft with Visual Prompt → Generate Visual Button → API Call → 
-DALL·E Processing → Store Image URL → Update Draft → Display Image
+Get suggestions (optional) → Select suggestion or override prompt → Generate →
+  If workflow_diagram/before_after: programmatic SVG→PNG → data URL
+  Else: DALL·E → image URL → Update draft → Display
 ```
 
 ### 5. Content Approval Workflow
@@ -1063,23 +1079,27 @@ All endpoints require Clerk authentication via `auth()` from `@clerk/nextjs/serv
 
 ### Visuals
 
+#### `GET /api/visuals/suggestions?draftId=...`
+**Purpose**: Get 3–5 message-driven image suggestions for a draft (workflow, before/after, etc.).
+**Response**: `{ suggestions: [{ id, label, prompt, intent?, imageType? }] }`.
+
 #### `POST /api/visuals/generate`
-**Purpose**: Generate image with DALL·E
+**Purpose**: Generate image (programmatic diagram or DALL·E).
 **Body**:
 ```json
 {
   "draftId": "string (optional)",
   "prompt": "string (optional)",
-  "style": "string (optional)"
+  "style": "string (optional)",
+  "imageType": "workflow_diagram | before_after | ... (optional)"
 }
 ```
 
 **Process**:
-1. Gets visual prompt from draft (if draftId provided)
-2. Enhances prompt with brand style
-3. Calls DALL·E API
-4. Stores image URL
-5. Returns URL
+1. If `imageType === "workflow_diagram"`: parse prompt → render workflow SVG → PNG → data URL.
+2. Else if `imageType === "before_after"`: parse prompt → render before/after SVG → PNG → data URL.
+3. Else: enhance prompt (diagram-only), call DALL·E API, return image URL.
+4. Stores image URL or data URL on draft; returns URL.
 
 ### Schedules
 
@@ -1309,37 +1329,13 @@ export const anthropic = new Anthropic({
 - Strategy tone takes precedence
 - Maintains consistency across content
 
-### OpenAI DALL·E Integration
+### Image Generation (Diagram-First + DALL·E Fallback)
 
-#### Setup
-**Location**: `lib/openai.ts`
+**Programmatic diagrams** (`lib/diagram.ts`): Workflow and before/after diagrams are rendered as SVG (real text, clean style) and converted to PNG via sharp. Used when `imageType` is `workflow_diagram` or `before_after`. No DALL·E call.
 
-```typescript
-import OpenAI from "openai"
+**DALL·E** (`lib/openai.ts` → `generateVisual()`): Used only when `imageType` is not workflow_diagram or before_after. Prompt constrained to hand-drawn-style diagram only (whiteboard/notebook), no poster or illustration.
 
-export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
-```
-
-#### Image Generation
-
-**Function**: `generateVisual()`
-
-**Model**: `dall-e-3`
-**Size**: 1024x1024
-**Quality**: standard
-
-**Prompt Enhancement**:
-- Adds brand style preferences
-- Ensures "No text overlays"
-- Professional, minimalistic design
-
-**Process**:
-1. Enhances prompt
-2. Calls DALL·E API
-3. Returns image URL
-4. Stores in database
+**Setup**: `lib/openai.ts` uses `OPENAI_API_KEY`. **Model**: dall-e-3, 1024x1024, standard quality. **Process**: Enhance prompt (diagram-only constraints) → DALL·E API → return image URL.
 
 ---
 
@@ -1908,7 +1904,8 @@ author-ai-saas/
 ├── lib/
 │   ├── claude.ts             # Claude API (product-aware)
 │   ├── strategy.ts           # Strategy Decision Engine (NEW)
-│   ├── openai.ts             # OpenAI/DALL·E API
+│   ├── diagram.ts            # Programmatic workflow/before_after diagrams (SVG→PNG)
+│   ├── openai.ts             # OpenAI/DALL·E API (fallback for non-diagram types)
 │   ├── github.ts             # GitHub API
 │   ├── linkedin.ts           # LinkedIn API
 │   ├── twitter.ts            # Twitter API
@@ -2040,7 +2037,7 @@ author-ai-saas/
 ### Current Performance
 - **Page Load**: < 2s (target)
 - **API Response**: < 500ms (target)
-- **AI Generation**: 5-15s (Claude), 10-20s (DALL·E)
+- **AI Generation**: 5-15s (Claude), programmatic diagrams < 5s, 10-20s (DALL·E when used)
 - **Database Queries**: < 100ms (target)
 
 ### Optimization Opportunities

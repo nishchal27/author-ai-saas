@@ -14,9 +14,9 @@ A production-grade SaaS that helps solo founders turn their real product activit
 1. **Human Input Layer** - Minimal, guided input forms
 2. **Core Insight Agent** - Claude-powered insight extraction
 3. **Content Translation Layer** - Multi-format content generation
-4. **Visual & Image Layer** - DALL·E integration for visuals
+4. **Visual & Image Layer** - Diagram-first (workflow/before_after programmatic SVG + DALL·E fallback)
 5. **Approval & Control Layer** - Human review and editing
-6. **Automation Layer** - (Future: n8n integration for scheduling)
+6. **Automation Layer** - Inngest for scheduling and publishing
 
 ### Tech Stack
 
@@ -24,7 +24,7 @@ A production-grade SaaS that helps solo founders turn their real product activit
 - **Backend:** Next.js API routes, Server Actions
 - **Auth:** Clerk
 - **Database:** PostgreSQL with Prisma ORM
-- **AI:** Claude API (Anthropic) for reasoning & content, DALL·E (OpenAI) for visuals
+- **AI:** Claude API (Anthropic) for reasoning & content; diagram-first image generation (programmatic workflow/before_after + DALL·E fallback)
 - **State:** Zustand, TanStack Query
 
 ## 🚀 Getting Started
@@ -118,9 +118,10 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 - Visual prompt generation
 
 ### 4. Visual Generation
-- DALL·E integration
-- Brand-aligned visuals
-- Infographic concepts
+- Diagram-first: workflow and before/after diagrams (programmatic SVG with real text)
+- Image suggestions with Image Intent (workflow_diagram, before_after, etc.)
+- DALL·E fallback for other types (diagram-only prompt constraints)
+- Supported platforms for content: LinkedIn, Twitter, Facebook, Blog
 
 ### 5. Approval Workflow
 - Review and edit drafts
@@ -158,7 +159,6 @@ This is a production SaaS product. Contributions should maintain the core princi
 
 ## 🚧 Roadmap
 
-- [ ] n8n automation integration
 - [ ] Social media publishing (LinkedIn, Twitter/X)
 - [ ] Content calendar
 - [ ] Analytics dashboard
