@@ -37,3 +37,4 @@ Trade-offs made as a solo engineer working on a live SaaS
 Before vs after performance metrics, with context
 
 This blog will focus on practical decision-making in production, not generic performance tips, and will directly build on the context shared in the original post.
+
