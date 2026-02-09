@@ -138,7 +138,14 @@ export default function ActivitiesPage() {
       ) : (
         <div className="grid gap-4">
           {filteredActivities.map((activity: any) => (
-            <Card key={activity.id}>
+            <Card
+              key={activity.id}
+              className={
+                !activity.processed
+                  ? "border-accent/30 bg-accent/5"
+                  : "border-success/20 bg-success-muted/30"
+              }
+            >
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
@@ -149,7 +156,7 @@ export default function ActivitiesPage() {
                         <>
                           <span>•</span>
                           <span className="flex items-center gap-1">
-                            <Package className="h-3 w-3" />
+                            <Package className="h-3 w-3 text-primary" />
                             {activity.product.name}
                           </span>
                         </>
@@ -157,10 +164,19 @@ export default function ActivitiesPage() {
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
-                    <Badge variant={activity.processed ? "secondary" : "default"}>
+                    <Badge
+                      variant="outline"
+                      className={
+                        activity.processed
+                          ? "border-success/40 bg-success-muted text-success"
+                          : "border-accent/40 bg-accent/10 text-accent"
+                      }
+                    >
                       {activity.processed ? "Processed" : "New"}
                     </Badge>
-                    <Badge variant="outline">{activity.type}</Badge>
+                    <Badge variant="outline" className="text-muted-foreground">
+                      {activity.type}
+                    </Badge>
                   </div>
                 </div>
               </CardHeader>

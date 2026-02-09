@@ -52,6 +52,30 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        metric: {
+          views: "hsl(var(--metric-views))",
+          "views-muted": "hsl(var(--metric-views-muted))",
+          engagement: "hsl(var(--metric-engagement))",
+          "engagement-muted": "hsl(var(--metric-engagement-muted))",
+          rate: "hsl(var(--metric-rate))",
+          "rate-muted": "hsl(var(--metric-rate-muted))",
+          clicks: "hsl(var(--metric-clicks))",
+          "clicks-muted": "hsl(var(--metric-clicks-muted))",
+        },
+        platform: {
+          linkedin: "hsl(var(--platform-linkedin))",
+          "linkedin-muted": "hsl(var(--platform-linkedin-muted))",
+          twitter: "hsl(var(--platform-twitter))",
+          "twitter-muted": "hsl(var(--platform-twitter-muted))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          muted: "hsl(var(--success-muted))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          muted: "hsl(var(--warning-muted))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

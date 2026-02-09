@@ -188,7 +188,7 @@ export default function CalendarPage() {
                   key={index}
                   className={cn(
                     "border rounded-lg p-2 min-h-[120px] transition-colors",
-                    isToday(day) && "bg-muted border-primary/20",
+                    isToday(day) && "bg-primary/5 border-primary/30",
                     !isToday(day) && "hover:bg-muted/50"
                   )}
                 >
@@ -214,44 +214,53 @@ export default function CalendarPage() {
                     </Button>
                   </div>
                   <div className="space-y-1">
-                    {daySchedules.map((schedule: any) => (
-                      <div
-                        key={schedule.id}
-                        className={`text-xs p-2 rounded cursor-pointer transition-colors ${
-                          schedule.status === "published"
-                            ? "bg-green-50 border border-green-200 hover:bg-green-100"
-                            : schedule.status === "failed"
-                            ? "bg-red-50 border border-red-200 hover:bg-red-100"
-                            : "bg-primary/10 hover:bg-primary/20"
-                        }`}
-                        onClick={() => {
-                          // Could open edit dialog
-                        }}
-                      >
-                        <div className="flex items-center gap-1 mb-1">
-                          <Badge variant="outline" className="text-xs">
-                            {schedule.platform}
-                          </Badge>
-                          <span className="text-muted-foreground">
-                            {format(new Date(schedule.scheduledAt), "HH:mm")}
-                          </span>
-                          {schedule.status === "published" && (
-                            <CheckCircle2 className="h-3 w-3 text-green-600 ml-auto" />
+                    {daySchedules.map((schedule: any) => {
+                      const isLinkedIn = schedule.platform?.toLowerCase() === "linkedin"
+                      const isTwitter = schedule.platform?.toLowerCase() === "twitter"
+                      const platformBadgeClass = isLinkedIn
+                        ? "text-xs border-platform-linkedin/30 bg-platform-linkedin-muted text-platform-linkedin"
+                        : isTwitter
+                          ? "text-xs border-platform-twitter/30 bg-platform-twitter-muted text-platform-twitter"
+                          : "text-xs"
+                      return (
+                        <div
+                          key={schedule.id}
+                          className={cn(
+                            "text-xs p-2 rounded cursor-pointer transition-colors",
+                            schedule.status === "published" &&
+                              "bg-success-muted border border-success/30 hover:bg-success-muted/80",
+                            schedule.status === "failed" &&
+                              "bg-destructive/10 border border-destructive/30 hover:bg-destructive/20",
+                            schedule.status === "pending" &&
+                              "bg-primary/10 border border-primary/20 hover:bg-primary/20"
                           )}
-                          {schedule.status === "failed" && (
-                            <XCircle className="h-3 w-3 text-red-600 ml-auto" />
+                          onClick={() => {}}
+                        >
+                          <div className="flex items-center gap-1 mb-1">
+                            <Badge variant="outline" className={platformBadgeClass}>
+                              {schedule.platform}
+                            </Badge>
+                            <span className="text-muted-foreground">
+                              {format(new Date(schedule.scheduledAt), "HH:mm")}
+                            </span>
+                            {schedule.status === "published" && (
+                              <CheckCircle2 className="h-3 w-3 text-success ml-auto" />
+                            )}
+                            {schedule.status === "failed" && (
+                              <XCircle className="h-3 w-3 text-destructive ml-auto" />
+                            )}
+                          </div>
+                          <p className="truncate font-medium">
+                            {schedule.contentDraft?.title || "Scheduled post"}
+                          </p>
+                          {schedule.status === "failed" && schedule.errorMessage && (
+                            <p className="text-destructive text-[10px] mt-1 truncate" title={schedule.errorMessage}>
+                              {schedule.errorMessage}
+                            </p>
                           )}
                         </div>
-                        <p className="truncate font-medium">
-                          {schedule.contentDraft?.title || "Scheduled post"}
-                        </p>
-                        {schedule.status === "failed" && schedule.errorMessage && (
-                          <p className="text-red-600 text-[10px] mt-1 truncate" title={schedule.errorMessage}>
-                            {schedule.errorMessage}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )
@@ -326,7 +335,8 @@ export default function CalendarPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
+              <Button type="submit" disabled={createMutation.isPending} variant="default">
+                <Calendar className="mr-2 h-4 w-4" />
                 Schedule
               </Button>
             </DialogFooter>

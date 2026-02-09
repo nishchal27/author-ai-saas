@@ -300,10 +300,10 @@ export default function DashboardPage() {
         </div>
 
         {/* Background jobs */}
-        <Card>
+        <Card className="border-border/80 bg-muted/30">
           <CardHeader className="py-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-muted-foreground/50" aria-hidden />
+              <span className="h-2 w-2 rounded-full bg-accent" aria-hidden />
               Background
             </CardTitle>
           </CardHeader>
@@ -317,16 +317,19 @@ export default function DashboardPage() {
           <h2 className="text-lg font-semibold mb-3">Products</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {products.map((p: any) => (
-              <Card key={p.id} className="overflow-hidden">
+              <Card key={p.id} className="overflow-hidden border-primary/10 bg-gradient-to-br from-primary/5 to-transparent hover:from-primary/10 transition-colors">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">{p.name}</CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Package className="h-4 w-4 text-primary" />
+                    {p.name}
+                  </CardTitle>
                   <CardDescription className="line-clamp-2">
                     {p.description || p.audience ? [p.description, p.audience].filter(Boolean).join(" · ") : "No description"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">
                   <div className="flex flex-wrap gap-2">
-                    <Button variant="ghost" size="sm" asChild>
+                    <Button variant="ghost" size="sm" asChild className="text-primary hover:text-primary hover:bg-primary/10">
                       <Link href={`/dashboard/strategy?productId=${p.id}`}>Strategy</Link>
                     </Button>
                   </div>
@@ -337,10 +340,10 @@ export default function DashboardPage() {
         </div>
 
         {/* Founder & build in public */}
-        <Card>
+        <Card className="border-accent/20 bg-accent/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <User className="h-4 w-4" />
+              <User className="h-4 w-4 text-accent" />
               Founder & build in public
             </CardTitle>
             <CardDescription>
