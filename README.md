@@ -72,12 +72,25 @@ npx prisma generate
 npx prisma db push
 ```
 
-5. Run the development server:
+5. **(Optional)** Populate the database with realistic seed data (2 products, activities, insights, content, calendar, analytics) so you can test the app with full data:
+```bash
+# Set your Clerk user ID (find it in Clerk Dashboard → Users, or after signing in once)
+# Windows (PowerShell): $env:POPULATE_CLERK_ID="user_xxx"; npm run populate
+# Unix: POPULATE_CLERK_ID=user_xxx npm run populate
+
+# Add to .env: POPULATE_CLERK_ID=user_xxx
+npm run populate
+
+# To replace existing seed data for that user (avoids duplicates on re-run):
+# POPULATE_CLEAN=1 npm run populate
+```
+
+6. Run the development server:
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000) in your browser. Sign in with the same Clerk user you used for `POPULATE_CLERK_ID` to see the seed data.
 
 ## 📁 Project Structure
 

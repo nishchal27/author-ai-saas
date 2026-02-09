@@ -374,9 +374,12 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-primary/15 bg-primary/5">
         <CardHeader>
-          <CardTitle>GitHub Integration</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Github className="h-5 w-5 text-primary" />
+            GitHub Integration
+          </CardTitle>
           <CardDescription>
             Connect your GitHub repository to automatically track commits and PRs
           </CardDescription>
@@ -469,9 +472,11 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-platform-linkedin/20 bg-platform-linkedin-muted/30">
         <CardHeader>
-          <CardTitle>LinkedIn Integration</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-platform-linkedin">
+            LinkedIn Integration
+          </CardTitle>
           <CardDescription>
             Connect LinkedIn to publish content directly. Note: OAuth flow coming soon. For now, use access token.
           </CardDescription>
@@ -516,9 +521,11 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-platform-twitter/20 bg-platform-twitter-muted/30">
         <CardHeader>
-          <CardTitle>Twitter/X Integration</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-platform-twitter">
+            Twitter/X Integration
+          </CardTitle>
           <CardDescription>
             Connect Twitter/X to publish content directly. Note: OAuth flow coming soon. For now, use bearer token.
           </CardDescription>

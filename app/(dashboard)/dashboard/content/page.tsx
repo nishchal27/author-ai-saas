@@ -432,13 +432,13 @@ export default function ContentPage() {
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card className="transition-colors hover:border-primary/50">
+            <Card className="transition-colors hover:border-primary/50 border-primary/10 bg-primary/5">
               <CardHeader
                 className="cursor-pointer flex flex-row items-center gap-3"
                 onClick={() => router.push("/dashboard/content?platform=all")}
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
-                  <Package className="h-6 w-6 text-muted-foreground" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                  <Package className="h-6 w-6 text-primary" />
                 </div>
                 <div>
                   <CardTitle className="text-base">All content</CardTitle>
@@ -459,17 +459,31 @@ export default function ContentPage() {
             {SUPPORTED_PLATFORMS.map((p) => {
               const Icon = PLATFORM_ICONS[p] || FileText
               const count = countsByPlatform[p] ?? 0
+              const isLinkedIn = p === "linkedin"
+              const isTwitter = p === "twitter"
+              const cardClass = isLinkedIn
+                ? "hover:border-platform-linkedin/50 border-platform-linkedin/20 bg-platform-linkedin-muted/50"
+                : isTwitter
+                  ? "hover:border-platform-twitter/50 border-platform-twitter/20 bg-platform-twitter-muted/50"
+                  : "hover:border-primary/50 border-primary/10 bg-muted/50"
+              const iconBgClass = isLinkedIn
+                ? "bg-platform-linkedin-muted"
+                : isTwitter
+                  ? "bg-platform-twitter-muted"
+                  : "bg-muted"
+              const iconColorClass = isLinkedIn
+                ? "text-platform-linkedin"
+                : isTwitter
+                  ? "text-platform-twitter"
+                  : "text-muted-foreground"
               return (
-                <Card
-                  key={p}
-                  className="transition-colors hover:border-primary/50"
-                >
+                <Card key={p} className={`transition-colors ${cardClass}`}>
                   <CardHeader
                     className="cursor-pointer flex flex-row items-center gap-3"
                     onClick={() => router.push(`/dashboard/content?platform=${p}`)}
                   >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
-                      <Icon className="h-6 w-6 text-muted-foreground" />
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${iconBgClass}`}>
+                      <Icon className={`h-6 w-6 ${iconColorClass}`} />
                     </div>
                     <div>
                       <CardTitle className="text-base">{PLATFORM_LABELS[p]}</CardTitle>
@@ -993,8 +1007,19 @@ export default function ContentPage() {
                   </div>
                   <div className="flex gap-2">
                     {draft.platform && (
-                      <Badge 
-                        variant={isAvoidPlatform ? "destructive" : alignment?.priority === "primary" ? "default" : "outline"}
+                      <Badge
+                        variant="outline"
+                        className={
+                          isAvoidPlatform
+                            ? "border-destructive/40 bg-destructive/10 text-destructive"
+                            : draft.platform?.toLowerCase() === "linkedin"
+                              ? "border-platform-linkedin/40 bg-platform-linkedin-muted text-platform-linkedin"
+                              : draft.platform?.toLowerCase() === "twitter"
+                                ? "border-platform-twitter/40 bg-platform-twitter-muted text-platform-twitter"
+                                : alignment?.priority === "primary"
+                                  ? "border-primary/40 bg-primary/10 text-primary"
+                                  : ""
+                        }
                       >
                         {draft.platform}
                       </Badge>
@@ -1015,7 +1040,18 @@ export default function ContentPage() {
                       </Badge>
                     )}
                     <Badge variant="outline">{draft.type}</Badge>
-                    <Badge variant={draft.status === "approved" ? "default" : "secondary"}>
+                    <Badge
+                      variant="outline"
+                      className={
+                        draft.status === "approved" || draft.status === "published"
+                          ? "border-success/40 bg-success-muted text-success"
+                          : draft.status === "scheduled"
+                            ? "border-warning/40 bg-warning-muted text-warning"
+                            : draft.status === "rejected"
+                              ? "border-destructive/40 bg-destructive/10 text-destructive"
+                              : "border-muted-foreground/40 bg-muted text-muted-foreground"
+                      }
+                    >
                       {draft.status}
                     </Badge>
                     {matchesFocus && (

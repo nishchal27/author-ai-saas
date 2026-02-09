@@ -115,9 +115,12 @@ export default function StrategyPage() {
       </div>
 
       {/* Product Context */}
-      <Card>
+      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Product Profile</CardTitle>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Package className="h-5 w-5 text-primary" />
+            Product Profile
+          </CardTitle>
           <CardDescription>This strategy is based on your product details</CardDescription>
         </CardHeader>
         <CardContent>

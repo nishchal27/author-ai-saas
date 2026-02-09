@@ -80,40 +80,61 @@ export default function InsightsPage() {
       ) : (
         <div className="grid gap-6">
           {filteredInsights.map((insight: any) => (
-            <Card key={insight.id}>
+            <Card
+              key={insight.id}
+              className={
+                insight.status === "approved"
+                  ? "border-success/20 bg-success-muted/20"
+                  : insight.status === "rejected"
+                    ? "border-destructive/20 bg-destructive/5"
+                    : "border-primary/10 bg-primary/5"
+              }
+            >
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
-                    <CardTitle>Angle</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" />
+                      Angle
+                    </CardTitle>
                     <CardDescription>
                       {format(new Date(insight.createdAt), "MMM d, yyyy")}
                     </CardDescription>
                   </div>
-                  <Badge variant={insight.status === "approved" ? "default" : "outline"}>
+                  <Badge
+                    variant="outline"
+                    className={
+                      insight.status === "approved"
+                        ? "border-success/40 bg-success-muted text-success"
+                        : insight.status === "rejected"
+                          ? "border-destructive/40 bg-destructive/10 text-destructive"
+                          : "border-primary/40 bg-primary/10 text-primary"
+                    }
+                  >
                     {insight.status}
                   </Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <h4 className="text-sm font-semibold mb-1">Problem</h4>
+                <div className="pl-3 border-l-2 border-metric-views">
+                  <h4 className="text-sm font-semibold mb-1 text-foreground/90">Problem</h4>
                   <p className="text-sm text-muted-foreground">{insight.coreProblem}</p>
                 </div>
-                <div>
-                  <h4 className="text-sm font-semibold mb-1">Solution</h4>
+                <div className="pl-3 border-l-2 border-metric-rate">
+                  <h4 className="text-sm font-semibold mb-1 text-foreground/90">Solution</h4>
                   <p className="text-sm text-muted-foreground">{insight.solution}</p>
                 </div>
-                <div>
-                  <h4 className="text-sm font-semibold mb-1">Audience</h4>
+                <div className="pl-3 border-l-2 border-primary">
+                  <h4 className="text-sm font-semibold mb-1 text-foreground/90">Audience</h4>
                   <p className="text-sm text-muted-foreground">{insight.audience}</p>
                 </div>
-                <div>
-                  <h4 className="text-sm font-semibold mb-1">Why it matters</h4>
+                <div className="pl-3 border-l-2 border-accent">
+                  <h4 className="text-sm font-semibold mb-1 text-foreground/90">Why it matters</h4>
                   <p className="text-sm text-muted-foreground">{insight.whyMatters}</p>
                 </div>
                 {insight.impact && (
-                  <div>
-                    <h4 className="text-sm font-semibold mb-1">Impact</h4>
+                  <div className="pl-3 border-l-2 border-success">
+                    <h4 className="text-sm font-semibold mb-1 text-foreground/90">Impact</h4>
                     <p className="text-sm text-muted-foreground">{insight.impact}</p>
                   </div>
                 )}
