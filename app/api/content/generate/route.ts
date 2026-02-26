@@ -1,5 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
+import { ensureUserForClerkId } from "@/lib/users"
+import { checkRateLimit } from "@/lib/rate-limit"
+import { parseBody, contentGenerateSchema } from "@/lib/validation"
 import { ProductContext, StrategyContext } from "@/lib/claude"
 import type { AudienceSegment, ContentIntent, Persona } from "@/lib/content-intelligence"
 import { runContentEngine } from "@/lib/content-engine"
@@ -13,7 +16,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await req.json()
+    const rateLimit = checkRateLimit(userId)
+    if (rateLimit) return rateLimit
+
+    const raw = await req.json().catch(() => null)
+    const parsed = parseBody(raw, contentGenerateSchema)
+    if ("error" in parsed) return parsed.error
     const {
       insightId,
       type: typeOverride,
@@ -24,23 +32,9 @@ export async function POST(req: Request) {
       persona: personaOverride,
       reason,
       context,
-    } = body
+    } = parsed.data
 
-    if (!insightId) {
-      return NextResponse.json(
-        { error: "Insight ID is required" },
-        { status: 400 }
-      )
-    }
-
-    // Get user with active product
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await ensureUserForClerkId(userId)
 
     // Fetch insight
     const insight = await db.insight.findFirst({

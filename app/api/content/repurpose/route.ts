@@ -1,5 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
+import { ensureUserForClerkId } from "@/lib/users"
+import { checkRateLimit } from "@/lib/rate-limit"
+import { parseBody, contentRepurposeSchema } from "@/lib/validation"
 import { generateContent, ProductContext, StrategyContext } from "@/lib/claude"
 import { decideContentOptions } from "@/lib/content-decision"
 import type { AudienceSegment, ContentIntent, Persona } from "@/lib/content-intelligence"
@@ -16,7 +19,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await req.json()
+    const rateLimit = checkRateLimit(userId)
+    if (rateLimit) return rateLimit
+
+    const raw = await req.json().catch(() => null)
+    const parsed = parseBody(raw, contentRepurposeSchema)
+    if ("error" in parsed) return parsed.error
     const {
       sourceDraftId,
       audienceSegment: audienceSegmentOverride,
@@ -24,21 +32,9 @@ export async function POST(req: Request) {
       persona: personaOverride,
       type: typeOverride,
       platform: platformOverride,
-    } = body
+    } = parsed.data
 
-    if (!sourceDraftId) {
-      return NextResponse.json(
-        { error: "sourceDraftId is required" },
-        { status: 400 }
-      )
-    }
-
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await ensureUserForClerkId(userId)
 
     const sourceDraft = await db.contentDraft.findFirst({
       where: { id: sourceDraftId, userId: user.id },

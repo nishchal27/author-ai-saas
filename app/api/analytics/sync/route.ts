@@ -1,5 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
+import { getDecryptedIntegration } from "@/lib/crypto"
+import { ensureUserForClerkId } from "@/lib/users"
+import { parseBody, analyticsSyncSchema } from "@/lib/validation"
 import { inngest } from "@/lib/inngest"
 import { NextResponse } from "next/server"
 
@@ -10,19 +13,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-      include: {
-        integrations: true,
-      },
+    const appUser = await ensureUserForClerkId(userId)
+    const user = await db.user.findUnique({
+      where: { id: appUser.id },
+      include: { integrations: true },
     })
-
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const body = await req.json()
-    const { scheduleId } = body
+    const raw = await req.json().catch(() => ({}))
+    const parsed = parseBody(raw, analyticsSyncSchema)
+    if ("error" in parsed) return parsed.error
+    const { scheduleId } = parsed.data
 
     if (scheduleId) {
       // Sync specific schedule
@@ -59,6 +62,13 @@ export async function POST(req: Request) {
           { status: 404 }
         )
       }
+      const decrypted = getDecryptedIntegration(integration)
+      if (!decrypted.accessToken) {
+        return NextResponse.json(
+          { error: "Integration not found" },
+          { status: 404 }
+        )
+      }
 
       // Trigger Inngest event for analytics sync
       await inngest.send({
@@ -67,7 +77,7 @@ export async function POST(req: Request) {
           scheduleId: schedule.id,
           externalId: schedule.externalId,
           platform: schedule.platform,
-          accessToken: integration.accessToken,
+          accessToken: decrypted.accessToken,
         },
       })
 
@@ -100,13 +110,15 @@ export async function POST(req: Request) {
           if (!integration || !integration.accessToken || !schedule.externalId) {
             return null
           }
+          const decrypted = getDecryptedIntegration(integration)
+          if (!decrypted.accessToken) return null
           return inngest.send({
             name: "content/published",
             data: {
               scheduleId: schedule.id,
               externalId: schedule.externalId,
               platform: schedule.platform,
-              accessToken: integration.accessToken,
+              accessToken: decrypted.accessToken,
             },
           })
         })

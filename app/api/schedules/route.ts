@@ -1,5 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
+import { ensureUserForClerkId } from "@/lib/users"
+import { parseBody, scheduleCreateSchema } from "@/lib/validation"
 import { inngest } from "@/lib/inngest"
 import { NextResponse } from "next/server"
 
@@ -10,13 +12,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await ensureUserForClerkId(userId)
 
     const { searchParams } = new URL(req.url)
     const start = searchParams.get("start")
@@ -62,23 +58,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
+    const user = await ensureUserForClerkId(userId)
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    const body = await req.json()
-    const { contentDraftId, platform, scheduledAt } = body
-
-    if (!contentDraftId || !platform || !scheduledAt) {
-      return NextResponse.json(
-        { error: "Content draft ID, platform, and scheduled time are required" },
-        { status: 400 }
-      )
-    }
+    const raw = await req.json().catch(() => null)
+    const parsed = parseBody(raw, scheduleCreateSchema)
+    if ("error" in parsed) return parsed.error
+    const { contentDraftId, platform, scheduledAt } = parsed.data
 
     // Verify draft belongs to user
     const draft = await db.contentDraft.findFirst({

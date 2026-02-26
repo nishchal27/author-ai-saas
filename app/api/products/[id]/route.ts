@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/db"
+import { ensureUserForClerkId } from "@/lib/users"
 
 // GET /api/products/[id] - Get a specific product with its strategy
 export async function GET(
@@ -21,10 +22,7 @@ export async function GET(
 
     const { id } = await params
 
-    const user = await prisma.user.findUnique({ where: { clerkId } })
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await ensureUserForClerkId(clerkId)
 
     const product = await prisma.product.findFirst({
       where: { id, userId: user.id },
@@ -68,10 +66,7 @@ export async function PATCH(
     const { id } = await params
     const body = await request.json()
 
-    const user = await prisma.user.findUnique({ where: { clerkId } })
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await ensureUserForClerkId(clerkId)
 
     // Verify ownership
     const existingProduct = await prisma.product.findFirst({
@@ -136,10 +131,7 @@ export async function DELETE(
 
     const { id } = await params
 
-    const user = await prisma.user.findUnique({ where: { clerkId } })
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await ensureUserForClerkId(clerkId)
 
     // Verify ownership
     const product = await prisma.product.findFirst({

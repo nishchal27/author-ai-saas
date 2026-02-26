@@ -1,5 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
+import { getDecryptedIntegration } from "@/lib/crypto"
+import { ensureUserForClerkId } from "@/lib/users"
+import { parseBody, githubSyncSchema } from "@/lib/validation"
 import { fetchCommits, fetchPullRequests, parseRepo } from "@/lib/github"
 import { NextResponse } from "next/server"
 
@@ -10,20 +13,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await req.json()
-    const { repoUrl } = body
+    const raw = await req.json().catch(() => null)
+    const parsed = parseBody(raw, githubSyncSchema)
+    if ("error" in parsed) return parsed.error
+    const { repoUrl } = parsed.data
 
-    if (!repoUrl) {
-      return NextResponse.json({ error: "Repository URL is required" }, { status: 400 })
-    }
-
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await ensureUserForClerkId(userId)
 
     // Get GitHub integration
     const githubIntegration = await db.integration.findFirst({
@@ -35,6 +30,13 @@ export async function POST(req: Request) {
     })
 
     if (!githubIntegration || !githubIntegration.accessToken) {
+      return NextResponse.json(
+        { error: "GitHub integration not found or inactive" },
+        { status: 404 }
+      )
+    }
+    const decrypted = getDecryptedIntegration(githubIntegration)
+    if (!decrypted.accessToken) {
       return NextResponse.json(
         { error: "GitHub integration not found or inactive" },
         { status: 404 }
@@ -52,8 +54,8 @@ export async function POST(req: Request) {
 
     // Fetch activities
     const [commits, prs] = await Promise.all([
-      fetchCommits(githubIntegration.accessToken, repo.owner, repo.repo),
-      fetchPullRequests(githubIntegration.accessToken, repo.owner, repo.repo),
+      fetchCommits(decrypted.accessToken, repo.owner, repo.repo),
+      fetchPullRequests(decrypted.accessToken, repo.owner, repo.repo),
     ])
 
     const activities = [...commits, ...prs]

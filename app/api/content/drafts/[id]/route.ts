@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
+import { ensureUserForClerkId } from "@/lib/users"
 import { NextResponse } from "next/server"
 
 export async function DELETE(
@@ -12,13 +13,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await ensureUserForClerkId(userId)
 
     const draft = await db.contentDraft.findFirst({
       where: {
@@ -55,13 +50,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await ensureUserForClerkId(userId)
 
     const body = await req.json()
     const { content, status } = body

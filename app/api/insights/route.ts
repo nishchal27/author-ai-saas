@@ -1,5 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
+import { ensureUserForClerkId } from "@/lib/users"
+import { parseBody, insightCreateSchema } from "@/lib/validation"
 import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
@@ -9,13 +11,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await ensureUserForClerkId(userId)
 
     const { searchParams } = new URL(req.url)
     const status = searchParams.get("status")
@@ -56,25 +52,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
+    const user = await ensureUserForClerkId(userId)
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const raw = await req.json().catch(() => null)
+    const parsed = parseBody(raw, insightCreateSchema)
+    if ("error" in parsed) return parsed.error
+    const { coreProblem, solution, audience, whyMatters, impact, productId } = parsed.data
 
-    const body = await req.json()
-    const { coreProblem, solution, audience, whyMatters, impact, productId } = body
-
-    if (!coreProblem || !solution || !audience || !whyMatters) {
-      return NextResponse.json(
-        { error: "coreProblem, solution, audience, and whyMatters are required" },
-        { status: 400 }
-      )
-    }
-
-    const targetProductId = productId || user.activeProductId
+    const targetProductId = productId ?? user.activeProductId
     if (targetProductId) {
       const product = await db.product.findFirst({
         where: { id: targetProductId, userId: user.id },
@@ -88,11 +73,11 @@ export async function POST(req: Request) {
       data: {
         userId: user.id,
         productId: targetProductId || null,
-        coreProblem: String(coreProblem),
-        solution: String(solution),
-        audience: String(audience),
-        whyMatters: String(whyMatters),
-        impact: impact ? String(impact) : null,
+        coreProblem,
+        solution,
+        audience,
+        whyMatters,
+        impact: impact ?? null,
         status: "draft",
       },
     })
