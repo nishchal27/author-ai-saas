@@ -1,6 +1,10 @@
 # Founder OS - Founder-first + product centric Marketing & Visibility System
 
-AuthorAI is a decision-first marketing assistant that adapts to **the PRODUCT being marketed**, not the user. The product's type, domain, audience, and maturity drive all marketing decisions
+AuthorAI is a decision-first marketing assistant that adapts to **the PRODUCT being marketed**, The product's type, domain, audience, and maturity drive all marketing decisions
+
+same is for solo founder who build in public, promote themselves and their products.
+
+Author AI have both options. user can select / toggle options as per their need.
 
 A production-grade SaaS that helps solo founders turn their real product + product activity into trust-building, conversion-ready content without the marketing stress.
 

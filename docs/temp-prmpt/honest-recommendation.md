@@ -11,7 +11,7 @@ Strong entry into AuthorAI
 Best primary sub-MVP:
 
 🥇 Product → Post Decision Engine
-or
+
 🥇 Weekly Build → Content Map
 
 
