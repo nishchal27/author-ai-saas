@@ -1,5 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
+import { apiError } from "@/lib/api-error"
+import { ensureUserForClerkId } from "@/lib/users"
 import { NextResponse } from "next/server"
 
 export async function GET() {
@@ -9,21 +11,11 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await ensureUserForClerkId(userId)
 
     return NextResponse.json({ user })
   } catch (error) {
-    console.error("Error fetching settings:", error)
-    return NextResponse.json(
-      { error: "Failed to fetch settings" },
-      { status: 500 }
-    )
+    return apiError(error, { context: "settings GET", publicMessage: "Failed to fetch settings" })
   }
 }
 
@@ -34,13 +26,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await ensureUserForClerkId(userId)
 
     const body = await req.json()
     const { brandVoice, brandColors, visualStyle, tier, founderBio } = body
@@ -58,10 +44,6 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json({ user: updated })
   } catch (error) {
-    console.error("Error updating settings:", error)
-    return NextResponse.json(
-      { error: "Failed to update settings" },
-      { status: 500 }
-    )
+    return apiError(error, { context: "settings PATCH", publicMessage: "Failed to update settings" })
   }
 }

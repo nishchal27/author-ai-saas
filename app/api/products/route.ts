@@ -8,7 +8,9 @@
 import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/db"
-import { generateMarketingStrategy } from "@/lib/strategy"
+import { ensureUserForClerkId } from "@/lib/users"
+import { parseBody, productCreateSchema } from "@/lib/validation"
+import { generateMarketingStrategy, type ProductType, type ProductStage, type SalesMotion } from "@/lib/strategy"
 
 // GET /api/products - Get all products for user
 export async function GET() {
@@ -18,25 +20,23 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { clerkId },
+    const user = await ensureUserForClerkId(clerkId)
+    const withProducts = await prisma.user.findUnique({
+      where: { id: user.id },
       include: {
         products: {
-          include: {
-            strategy: true,
-          },
+          include: { strategy: true },
           orderBy: { createdAt: "desc" },
         },
       },
     })
-
-    if (!user) {
-      return NextResponse.json({ products: [] })
+    if (!withProducts) {
+      return NextResponse.json({ products: [], activeProductId: null })
     }
 
-    return NextResponse.json({ 
-      products: user.products,
-      activeProductId: user.activeProductId,
+    return NextResponse.json({
+      products: withProducts.products,
+      activeProductId: withProducts.activeProductId,
     })
   } catch (error) {
     console.error("Error fetching products:", error)
@@ -55,38 +55,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { 
-      name, 
-      type, 
-      industry, 
-      audience, 
-      audienceDetail,
-      stage, 
-      salesMotion, 
-      description, 
-      website, 
-      competitors 
-    } = body
+    const raw = await request.json().catch(() => null)
+    const parsed = parseBody(raw, productCreateSchema)
+    if ("error" in parsed) return parsed.error
 
-    // Validate required fields
-    if (!name || !type || !industry || !audience || !stage || !salesMotion) {
-      return NextResponse.json(
-        { error: "Missing required fields: name, type, industry, audience, stage, salesMotion" },
-        { status: 400 }
-      )
-    }
+    const { name, type, industry, audience, audienceDetail, stage, salesMotion, description, website, competitors } = parsed.data
 
-    // Get or create user
-    let user = await prisma.user.findUnique({ where: { clerkId } })
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          clerkId,
-          email: `${clerkId}@temp.com`, // Will be updated from Clerk
-        },
-      })
-    }
+    const user = await ensureUserForClerkId(clerkId)
 
     // Create product
     const product = await prisma.product.create({
@@ -96,28 +71,31 @@ export async function POST(request: Request) {
         type,
         industry,
         audience,
-        audienceDetail: audienceDetail || undefined,
+        audienceDetail: audienceDetail ?? undefined,
         stage,
         salesMotion,
-        description,
-        website,
-        competitors,
+        description: description ?? undefined,
+        website: website || undefined,
+        competitors: competitors ?? undefined,
       },
     })
 
     // Generate marketing strategy
-    const strategyOutput = await generateMarketingStrategy({
-      name,
-      type,
-      industry,
-      audience,
-      audienceDetail: audienceDetail || undefined,
-      stage,
-      salesMotion,
-      description,
-      website,
-      competitors,
-    }, user.tier)
+    const strategyOutput = await generateMarketingStrategy(
+      {
+        name,
+        type: type as ProductType,
+        industry,
+        audience,
+        audienceDetail: audienceDetail ?? undefined,
+        stage: stage as ProductStage,
+        salesMotion: salesMotion as SalesMotion,
+        description: description ?? undefined,
+        website: website ?? undefined,
+        competitors: competitors ?? undefined,
+      },
+      user.tier
+    )
 
     // Save strategy to database
     const strategy = await prisma.marketingStrategy.create({
@@ -172,9 +150,11 @@ export async function PATCH(request: Request) {
     const body = await request.json()
     const { activeProductId } = body
 
-    const user = await prisma.user.findUnique({ where: { clerkId } })
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    let user
+    try {
+      user = await ensureUserForClerkId(clerkId)
+    } catch {
+      return NextResponse.json({ error: "User not found" }, { status: 500 })
     }
 
     // Verify product belongs to user

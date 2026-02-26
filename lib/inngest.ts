@@ -5,6 +5,7 @@
 
 import { Inngest } from "inngest"
 import { db } from "@/lib/db"
+import { getDecryptedIntegration } from "@/lib/crypto"
 import { publishToLinkedIn } from "@/lib/linkedin"
 import { publishToTwitter } from "@/lib/twitter"
 import { getLinkedInAnalytics } from "@/lib/linkedin"
@@ -73,6 +74,17 @@ export const checkScheduledContent = inngest.createFunction(
             })
             return { scheduleId: schedule.id, status: "failed", reason: "No integration" }
           }
+          const decrypted = getDecryptedIntegration(integration)
+          if (!decrypted.accessToken) {
+            await db.schedule.update({
+              where: { id: schedule.id },
+              data: {
+                status: "failed",
+                errorMessage: `No active ${schedule.platform} integration found`,
+              },
+            })
+            return { scheduleId: schedule.id, status: "failed", reason: "No integration" }
+          }
 
           // Publish based on platform
           let externalId: string
@@ -84,7 +96,7 @@ export const checkScheduledContent = inngest.createFunction(
             const organizationId = config?.organizationId
 
             const result = await publishToLinkedIn(
-              integration.accessToken,
+              decrypted.accessToken,
               schedule.contentDraft.content,
               schedule.contentDraft.visualUrl || undefined,
               organizationId
@@ -92,7 +104,7 @@ export const checkScheduledContent = inngest.createFunction(
             externalId = result.id
           } else if (schedule.platform === "twitter") {
             const result = await publishToTwitter(
-              integration.accessToken,
+              decrypted.accessToken,
               schedule.contentDraft.content,
               schedule.contentDraft.visualUrl || undefined
             )
@@ -205,6 +217,10 @@ export const syncPublishedAnalytics = inngest.createFunction(
         if (!integration || !integration.accessToken || !schedule.externalId) {
           return { scheduleId: schedule.id, status: "skipped", reason: "No integration" }
         }
+        const decrypted = getDecryptedIntegration(integration)
+        if (!decrypted.accessToken) {
+          return { scheduleId: schedule.id, status: "skipped", reason: "No integration" }
+        }
 
         try {
           let analytics: {
@@ -216,12 +232,12 @@ export const syncPublishedAnalytics = inngest.createFunction(
 
           if (schedule.platform === "linkedin") {
             analytics = await getLinkedInAnalytics(
-              integration.accessToken,
+              decrypted.accessToken,
               schedule.externalId
             )
           } else if (schedule.platform === "twitter") {
             analytics = await getTwitterAnalytics(
-              integration.accessToken,
+              decrypted.accessToken,
               schedule.externalId
             )
           } else {
@@ -424,6 +440,10 @@ export const retryFailedPublishes = inngest.createFunction(
             if (!integration || !integration.accessToken) {
               return { scheduleId: schedule.id, status: "skipped", reason: "No integration" }
             }
+            const decrypted = getDecryptedIntegration(integration)
+            if (!decrypted.accessToken) {
+              return { scheduleId: schedule.id, status: "skipped", reason: "No integration" }
+            }
 
             // Publish
             let externalId: string
@@ -435,7 +455,7 @@ export const retryFailedPublishes = inngest.createFunction(
               const organizationId = config?.organizationId
 
               const result = await publishToLinkedIn(
-                integration.accessToken,
+                decrypted.accessToken,
                 schedule.contentDraft.content,
                 schedule.contentDraft.visualUrl || undefined,
                 organizationId
@@ -443,7 +463,7 @@ export const retryFailedPublishes = inngest.createFunction(
               externalId = result.id
             } else if (schedule.platform === "twitter") {
               const result = await publishToTwitter(
-                integration.accessToken,
+                decrypted.accessToken,
                 schedule.contentDraft.content,
                 schedule.contentDraft.visualUrl || undefined
               )
@@ -475,7 +495,7 @@ export const retryFailedPublishes = inngest.createFunction(
                 scheduleId: schedule.id,
                 externalId,
                 platform: schedule.platform,
-                accessToken: integration.accessToken,
+                accessToken: decrypted.accessToken,
               },
               ts: Date.now() + 5 * 60 * 1000, // 5 minutes from now (Unix ms)
             })

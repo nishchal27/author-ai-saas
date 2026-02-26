@@ -1,5 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
+import { encryptToken } from "@/lib/crypto"
+import { ensureUserForClerkId } from "@/lib/users"
+import { parseBody, integrationTwitterSchema } from "@/lib/validation"
 import { NextResponse } from "next/server"
 
 export async function POST(req: Request) {
@@ -9,23 +12,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
+    const user = await ensureUserForClerkId(userId)
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    const body = await req.json()
-    const { accessToken, refreshToken } = body
-
-    if (!accessToken) {
-      return NextResponse.json(
-        { error: "Access token is required" },
-        { status: 400 }
-      )
-    }
+    const raw = await req.json().catch(() => null)
+    const parsed = parseBody(raw, integrationTwitterSchema)
+    if ("error" in parsed) return parsed.error
+    const { accessToken, refreshToken } = parsed.data
 
     const existing = await db.integration.findFirst({
       where: {
@@ -34,12 +26,14 @@ export async function POST(req: Request) {
       },
     })
 
+    const storedAccess = encryptToken(accessToken)
+    const storedRefresh = refreshToken ? encryptToken(refreshToken) : null
     if (existing) {
       await db.integration.update({
         where: { id: existing.id },
         data: {
-          accessToken,
-          refreshToken: refreshToken || null,
+          accessToken: storedAccess,
+          refreshToken: storedRefresh,
           isActive: true,
         },
       })
@@ -49,8 +43,8 @@ export async function POST(req: Request) {
           userId: user.id,
           type: "twitter",
           provider: "twitter",
-          accessToken,
-          refreshToken: refreshToken || null,
+          accessToken: storedAccess,
+          refreshToken: storedRefresh,
           isActive: true,
         },
       })

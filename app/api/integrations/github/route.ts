@@ -1,5 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
+import { encryptToken } from "@/lib/crypto"
+import { ensureUserForClerkId } from "@/lib/users"
+import { parseBody, integrationGithubSchema } from "@/lib/validation"
 import { NextResponse } from "next/server"
 
 export async function POST(req: Request) {
@@ -9,23 +12,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
+    const user = await ensureUserForClerkId(userId)
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    const body = await req.json()
-    const { accessToken, config } = body
-
-    if (!accessToken) {
-      return NextResponse.json(
-        { error: "Access token is required" },
-        { status: 400 }
-      )
-    }
+    const raw = await req.json().catch(() => null)
+    const parsed = parseBody(raw, integrationGithubSchema)
+    if ("error" in parsed) return parsed.error
+    const { accessToken, config } = parsed.data
 
     // Check if integration exists
     const existing = await db.integration.findFirst({
@@ -35,12 +27,15 @@ export async function POST(req: Request) {
       },
     })
 
+    const storedToken = encryptToken(accessToken)
+    const configStr =
+      config == null ? null : typeof config === "string" ? config : JSON.stringify(config)
     if (existing) {
       await db.integration.update({
         where: { id: existing.id },
         data: {
-          accessToken,
-          config: config || null,
+          accessToken: storedToken,
+          config: configStr,
           isActive: true,
         },
       })
@@ -50,8 +45,8 @@ export async function POST(req: Request) {
           userId: user.id,
           type: "github",
           provider: "github",
-          accessToken,
-          config: config || null,
+          accessToken: storedToken,
+          config: configStr,
           isActive: true,
         },
       })

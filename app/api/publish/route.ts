@@ -1,5 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
+import { getDecryptedIntegration } from "@/lib/crypto"
+import { ensureUserForClerkId } from "@/lib/users"
+import { parseBody, publishSchema } from "@/lib/validation"
 import { publishToLinkedIn } from "@/lib/linkedin"
 import { publishToTwitter } from "@/lib/twitter"
 import { NextResponse } from "next/server"
@@ -11,23 +14,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
+    const user = await ensureUserForClerkId(userId)
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    const body = await req.json()
-    const { scheduleId } = body
-
-    if (!scheduleId) {
-      return NextResponse.json(
-        { error: "Schedule ID is required" },
-        { status: 400 }
-      )
-    }
+    const raw = await req.json().catch(() => null)
+    const parsed = parseBody(raw, publishSchema)
+    if ("error" in parsed) return parsed.error
+    const { scheduleId } = parsed.data
 
     // Get schedule
     const schedule = await db.schedule.findFirst({
@@ -71,6 +63,13 @@ export async function POST(req: Request) {
         { status: 404 }
       )
     }
+    const decrypted = getDecryptedIntegration(integration)
+    if (!decrypted.accessToken) {
+      return NextResponse.json(
+        { error: `No active ${schedule.platform} integration found` },
+        { status: 404 }
+      )
+    }
 
     // Publish based on platform
     let externalId: string
@@ -83,7 +82,7 @@ export async function POST(req: Request) {
         const organizationId = config?.organizationId
 
         const result = await publishToLinkedIn(
-          integration.accessToken,
+          decrypted.accessToken,
           schedule.contentDraft.content,
           schedule.contentDraft.visualUrl || undefined,
           organizationId
@@ -91,7 +90,7 @@ export async function POST(req: Request) {
         externalId = result.id
       } else if (schedule.platform === "twitter") {
         const result = await publishToTwitter(
-          integration.accessToken,
+          decrypted.accessToken,
           schedule.contentDraft.content,
           schedule.contentDraft.visualUrl || undefined
         )

@@ -1,5 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
+import { ensureUserForClerkId } from "@/lib/users"
+import { parseBody, activityCreateSchema } from "@/lib/validation"
 import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
@@ -9,13 +11,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await ensureUserForClerkId(userId)
 
     const { searchParams } = new URL(req.url)
     const processed = searchParams.get("processed")
@@ -64,26 +60,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await req.json()
-    const { type, title, description, metadata, productId } = body
+    const raw = await req.json().catch(() => null)
+    const parsed = parseBody(raw, activityCreateSchema)
+    if ("error" in parsed) return parsed.error
+    const { type, title, description, metadata, productId } = parsed.data
 
-    if (!type || !title) {
-      return NextResponse.json(
-        { error: "Type and title are required" },
-        { status: 400 }
-      )
-    }
+    const user = await ensureUserForClerkId(userId)
 
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    // Use provided productId or user's active product
-    const targetProductId = productId || user.activeProductId
+    const targetProductId = productId ?? user.activeProductId
 
     const activity = await db.activity.create({
       data: {
@@ -92,7 +76,7 @@ export async function POST(req: Request) {
         type,
         source: "manual",
         title,
-        description: description || null,
+        description: description ?? null,
         metadata: metadata ? JSON.stringify(metadata) : null,
         processed: false,
       },

@@ -1,5 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
+import { ensureUserForClerkId } from "@/lib/users"
+import { checkRateLimit } from "@/lib/rate-limit"
+import { parseBody, contentRegenerateSchema } from "@/lib/validation"
 import { generateContent, ProductContext, StrategyContext } from "@/lib/claude"
 import type { AudienceSegment, ContentIntent, Persona } from "@/lib/content-intelligence"
 import { NextResponse } from "next/server"
@@ -15,22 +18,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await req.json()
-    const { draftId, feedback } = body as { draftId: string; feedback?: string }
+    const rateLimit = checkRateLimit(userId)
+    if (rateLimit) return rateLimit
 
-    if (!draftId) {
-      return NextResponse.json(
-        { error: "draftId is required" },
-        { status: 400 }
-      )
-    }
+    const raw = await req.json().catch(() => null)
+    const parsed = parseBody(raw, contentRegenerateSchema)
+    if ("error" in parsed) return parsed.error
+    const { draftId, feedback } = parsed.data
 
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await ensureUserForClerkId(userId)
 
     const draft = await db.contentDraft.findFirst({
       where: { id: draftId, userId: user.id },

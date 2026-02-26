@@ -1,5 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
+import { ensureUserForClerkId } from "@/lib/users"
+import { checkRateLimit } from "@/lib/rate-limit"
+import { parseBody, insightExtractSchema } from "@/lib/validation"
 import { extractInsight, ProductContext } from "@/lib/claude"
 import { NextResponse } from "next/server"
 
@@ -10,21 +13,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await req.json()
-    const { activityId, humanInput, productId } = body
+    const rateLimit = checkRateLimit(userId)
+    if (rateLimit) return rateLimit
 
-    if (!activityId) {
-      return NextResponse.json({ error: "Activity ID is required" }, { status: 400 })
-    }
+    const raw = await req.json().catch(() => null)
+    const parsed = parseBody(raw, insightExtractSchema)
+    if ("error" in parsed) return parsed.error
+    const { activityId, humanInput, productId } = parsed.data
 
-    // Get user
-    const user = await db.user.findFirst({
-      where: { clerkId: userId },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await ensureUserForClerkId(userId)
 
     // Fetch activity
     const activity = await db.activity.findFirst({

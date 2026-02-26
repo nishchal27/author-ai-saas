@@ -32,6 +32,10 @@ OPENAI_API_KEY=sk-...
 # Cron Secret (for legacy cron endpoint)
 CRON_SECRET=your-secret-key-here
 
+# Integration token encryption (optional but recommended for production)
+# Use a random 32+ character string. If unset, tokens are stored in plaintext.
+# ENCRYPTION_KEY=your-32-char-or-longer-secret
+
 # Next.js
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
@@ -155,6 +159,29 @@ Make sure to set all environment variables in your hosting platform:
 - `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY`
 - `NEXT_PUBLIC_APP_URL` (your production URL)
+- `ENCRYPTION_KEY` (optional; recommended for production to encrypt integration tokens)
+
+## Verify production database (Neon / Postgres)
+
+If you see **`PrismaClientInitializationError: FATAL: Tenant or user not found`** in production (e.g. on login or `/dashboard`), the app cannot reach the database. Fix it as follows:
+
+1. **Check your database provider (e.g. Neon)**  
+   - Ensure the project and branch in your connection string still exist.  
+   - If you rotated the password or recreated the project, the old `DATABASE_URL` is invalid.
+
+2. **Get a valid connection string**  
+   - In Neon: Project → Connection details → copy the connection string (use the one that matches your branch).  
+   - Ensure the username and database exist for that project.
+
+3. **Update production env**  
+   - In Vercel: Project → Settings → Environment Variables → set `DATABASE_URL` to the new value for Production (and Preview if needed).  
+   - Redeploy so all runtimes use the new URL.
+
+4. **Verify before or after**  
+   - Run locally with the production URL to confirm it works:
+   - **PowerShell:** `$env:DATABASE_URL="postgresql://..."; npm run db:verify`
+   - **Bash:** `DATABASE_URL='postgresql://...' npm run db:verify`
+   - If `db:verify` fails, the URL is wrong or the database is unreachable; fix the URL and try again.
 
 ## Troubleshooting
 
@@ -164,6 +191,7 @@ Make sure to set all environment variables in your hosting platform:
 - Check if PostgreSQL is running (local)
 - Verify database exists
 - Check firewall settings (cloud databases)
+- For **Neon**: use the steps in "Verify production database" above if you see "Tenant or user not found"
 
 ### Clerk Authentication Issues
 
