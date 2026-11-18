@@ -20,7 +20,7 @@ export async function evaluateContent(
   intent: string,
   valueReason?: string
 ): Promise<EvaluationResult> {
-  const systemPrompt = `You are a content quality reviewer for AuthorAI. Rate the given draft for fit with the platform and the creator's goal. Output valid JSON only: { "score": number between 0 and 1, "note": "One short sentence explaining why (e.g. 'Fits LinkedIn: professional, value-driven.' or 'Could be punchier for Twitter.')" }. Be concise.`
+  const systemPrompt = `You are a content quality reviewer for Varabhi. Rate the given draft for fit with the platform and the creator's goal. Output valid JSON only: { "score": number between 0 and 1, "note": "One short sentence explaining why (e.g. 'Fits LinkedIn: professional, value-driven.' or 'Could be punchier for Twitter.')" }. Be concise.`
 
   const userPrompt = `Platform: ${platform}. Goal/intent: ${intent}.${valueReason ? ` Extra context: ${valueReason}` : ""}
 

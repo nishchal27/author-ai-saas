@@ -1,10 +1,13 @@
-# AuthorAI Product Direction V2
+# Varabhi Product Direction V2
 
 **Status:** Official product direction (approved)  
 **Date:** 2026-11-17  
 **Audience:** Product and engineering contributors  
 **Related documents:**
 
+- Docs index / authority hierarchy: [`docs/README.md`](../README.md)
+- Technical architecture: [`docs/architecture/AUTHORAI_TECHNICAL_ARCHITECTURE.md`](../architecture/AUTHORAI_TECHNICAL_ARCHITECTURE.md)
+- AI system contract: [`docs/architecture/AUTHORAI_AI_SYSTEM.md`](../architecture/AUTHORAI_AI_SYSTEM.md)
 - Technical/product audit (preserve; do not overwrite): [`AUTHORAI_V2_PRODUCT_AND_CODEBASE_AUDIT.md`](../../AUTHORAI_V2_PRODUCT_AND_CODEBASE_AUDIT.md)
 - Folder index: [`docs/product/README.md`](./README.md)
 - Historical strategy thinking (reference only): [`docs/very-important.mdx`](../very-important.mdx)
@@ -24,19 +27,19 @@ This document is the **source of truth for product vision and scope**. The audit
 
 ## 1. Product overview
 
-**AuthorAI** is a brand-aware AI marketing workspace for micro-businesses, small product brands, solo founders, and creators.
+**Varabhi** is a brand-aware AI marketing workspace for micro-businesses, small product brands, solo founders, and creators.
 
 **Core promise:**
 
-> Teach AuthorAI about your brand. Let it help you decide what to create and produce consistent marketing content.
+> Teach Varabhi about your brand. Let it help you decide what to create and produce consistent marketing content.
 
-AuthorAI helps people without a dedicated marketer:
+Varabhi helps people without a dedicated marketer:
 
 1. Capture and correct what their brand is.
 2. Decide what content to create (pillars, ideas, suitable platforms).
 3. Turn ideas into platform-specific, brand-consistent drafts they can review, edit, and reuse.
 
-AuthorAI is **not** a full marketing suite, publishing network, CRM, or autonomous marketing agent.
+Varabhi is **not** a full marketing suite, publishing network, CRM, or autonomous marketing agent.
 
 ### Current vs intended product shape
 
@@ -67,7 +70,7 @@ without needing marketing expertise or a team.
 
 **For** micro-businesses, small product brands, solo founders, and creators  
 **who** struggle to decide what to post and to produce consistent, on-brand content  
-**AuthorAI** is a brand-aware AI marketing workspace  
+**Varabhi** is a brand-aware AI marketing workspace  
 **that** remembers approved brand facts and helps generate ideas and platform-specific drafts  
 **unlike** generic chat tools (which forget context) or social schedulers (which assume you already know what to say).
 
@@ -75,14 +78,14 @@ without needing marketing expertise or a team.
 
 - Lead with **brand understanding + content decisions + drafts**, not automation.
 - Compete on **persistence of brand context** and **practical recommendations**, not on feature count.
-- Never claim AuthorAI replaces a marketer, agency, or full social stack.
+- Never claim Varabhi replaces a marketer, agency, or full social stack.
 - Prefer one strong weekly loop over many shallow features.
 
 ---
 
 ## 3. Target audience and user personas
 
-AuthorAI supports **different brand categories in one product**, using shared Brand Intelligence fields (category, offerings, audience, voice, facts) rather than separate apps per industry.
+Varabhi supports **different brand categories in one product**, using shared Brand Intelligence fields (category, offerings, audience, voice, facts) rather than separate apps per industry.
 
 ### Primary segments (initial)
 
@@ -120,7 +123,7 @@ Independent creators, freelancers, small personal brands.
 
 ---
 
-## 4. Problems AuthorAI will solve
+## 4. Problems Varabhi will solve
 
 Focused problems only:
 
@@ -131,11 +134,11 @@ Focused problems only:
 5. **Draft production** — “Turning a rough idea into good, platform-specific copy is slow.”
 6. **Consistency of effort** — “I don’t stick to a simple content rhythm.”
 
-AuthorAI addresses these by combining **Brand Intelligence** (teach once, correct often), **Marketing Intelligence** (pillars, ideas, platforms), and **Content Studio** (generate, regenerate, repurpose, save).
+Varabhi addresses these by combining **Brand Intelligence** (teach once, correct often), **Marketing Intelligence** (pillars, ideas, platforms), and **Content Studio** (generate, regenerate, repurpose, save).
 
 ---
 
-## 5. Problems AuthorAI will NOT attempt to solve
+## 5. Problems Varabhi will NOT attempt to solve
 
 Do not market or build these as core promises:
 
@@ -145,7 +148,7 @@ Do not market or build these as core promises:
 | Proving ROI with deep analytics | Requires reliable publish + platform APIs; distracts from writing quality |
 | Running full campaigns / ads | Different product category |
 | CRM / lead pipelines | Not content workspace |
-| Replacing human judgment before publish | Users must review; AuthorAI must not invent product facts |
+| Replacing human judgment before publish | Users must review; Varabhi must not invent product facts |
 | “Autonomous marketing agent” that acts without review | Reliability and trust risk |
 | Industry-specific separate products | One modular brand model is enough |
 | Design suite / Canva replacement | Visuals are a later add-on to content, not the product center |
@@ -159,7 +162,7 @@ Four named capabilities. Status is relative to the current repo as of the V2 aud
 
 ### 6.1 Brand Intelligence / Brand Studio
 
-**Intent:** User teaches AuthorAI about the brand; AI proposes understanding; user corrects and approves facts.
+**Intent:** User teaches Varabhi about the brand; AI proposes understanding; user corrects and approves facts.
 
 | Capability | Status |
 |------------|--------|
@@ -210,7 +213,7 @@ Four named capabilities. Status is relative to the current repo as of the V2 aud
 
 ### Concept
 
-Brand Intelligence is the durable context AuthorAI uses for every recommendation and draft.
+Brand Intelligence is the durable context Varabhi uses for every recommendation and draft.
 
 **Principle:** Prefer user-approved facts over model improvisation. If a fact is not approved, the model must not invent it.
 
@@ -444,7 +447,7 @@ Primary: Home, Strategy, Content, Settings. Secondary: Calendar, Analytics. Acti
 
 - “Tell us about your brand” not “Configure sales motion taxonomy”
 - “What to post this week” not “Invoke content intelligence pipeline”
-- Always remind: review before publishing; AuthorAI should not invent facts
+- Always remind: review before publishing; Varabhi should not invent facts
 
 ---
 
@@ -623,7 +626,7 @@ Track a small set. Prefer behavior over vanity.
 | Qualitative: “better than ChatGPT for my brand?” | Differentiation hypothesis |
 | AI cost per active user / week | Viability |
 
-**Non-goals as primary beta KPIs:** posts published via AuthorAI, follower growth, dashboard chart engagement.
+**Non-goals as primary beta KPIs:** posts published via Varabhi, follower growth, dashboard chart engagement.
 
 **Abandon / pivot signals** (from audit, still valid):
 
@@ -647,7 +650,7 @@ Track a small set. Prefer behavior over vanity.
 9. **Maintainable** — clear modules and simple orchestration over clever frameworks.
 10. **Focused** — no feature without a demonstrated user need.
 11. **Honest** — do not document or market capabilities that are not implemented.
-12. **Human-in-the-loop** — users review content; AuthorAI does not invent product facts.
+12. **Human-in-the-loop** — users review content; Varabhi does not invent product facts.
 13. **One product, many categories** — extend Brand Intelligence; do not fork apps per industry.
 14. **Audit + direction** — use this file for *where we are going*; use the audit for *what the code is*; verify in code when unsure.
 
@@ -670,6 +673,6 @@ The audit recommended partial rebuild, Brand Profile → ideas → drafts, freez
 
 | Item | Value |
 |------|-------|
-| Owner | Product direction for AuthorAI V2 |
+| Owner | Product direction for Varabhi V2 |
 | Change process | Update this file when scope decisions change; do not silently expand MVP in code |
 | Code changes | This document alone must not be treated as permission to implement; implementation starts only after review of this direction |

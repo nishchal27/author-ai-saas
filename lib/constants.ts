@@ -1,4 +1,10 @@
 /**
+ * Product branding — single source for user-facing product name.
+ */
+export const PRODUCT_NAME = "Varabhi"
+export const PRODUCT_TAGLINE = "Brand-aware AI marketing workspace"
+
+/**
  * Shared platform list for content generation and UI.
  * Used by strategy, content generation, ContentPreview, and filters.
  */

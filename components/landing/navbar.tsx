@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Menu, X, Target } from "lucide-react"
 import { UserButton, useUser } from "@clerk/nextjs"
+import { PRODUCT_NAME } from "@/lib/constants"
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
@@ -33,7 +34,7 @@ export function Navbar() {
           <Link href="/" className="flex items-center space-x-2 group">
             <Target className="h-6 w-6 lg:h-7 lg:w-7 text-primary group-hover:text-primary/80 transition-colors" />
             <span className="text-xl lg:text-2xl font-bold text-foreground">
-              AuthorAI
+              {PRODUCT_NAME}
             </span>
           </Link>
 

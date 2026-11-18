@@ -263,7 +263,7 @@ export function ProductOnboarding({ open, onOpenChange, onComplete }: ProductOnb
                 </div>
                 <DialogTitle className="text-2xl">What product are you marketing?</DialogTitle>
                 <DialogDescription className="text-base mt-2">
-                  AuthorAI adapts to YOUR product. Let's start with the basics.
+                  Varabhi adapts to YOUR product. Let's start with the basics.
                 </DialogDescription>
               </DialogHeader>
 

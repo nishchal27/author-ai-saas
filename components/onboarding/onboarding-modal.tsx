@@ -19,7 +19,7 @@ interface OnboardingStep {
 
 const steps: OnboardingStep[] = [
   {
-    title: "Welcome to AuthorAI",
+    title: "Welcome to Varabhi",
     description: "We'll help you decide what to post next and why. One step at a time.",
     icon: <Activity className="h-8 w-8" />,
   },

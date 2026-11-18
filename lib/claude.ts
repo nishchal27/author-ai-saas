@@ -209,7 +209,7 @@ Frame the insight in a way that resonates with ${productContext.audience}.
 Consider the ${productContext.type} industry context when identifying themes.
 ` : ""
 
-  const systemPrompt = `You are a Core Insight Agent for AuthorAI. Your job is to extract meaningful, honest insights from real product activity.
+  const systemPrompt = `You are a Core Insight Agent for Varabhi. Your job is to extract meaningful, honest insights from real product activity.
 
 Principles:
 - Be honest and signal-based, never fabricate success
@@ -346,7 +346,7 @@ ${options.toneDepth ? `- Tone & depth: ${options.toneDepth}` : ""}
 `
       : ""
 
-  const systemPrompt = `You are a Content Translation Agent for AuthorAI. Your job is to create authentic, audience-aware content from insights.
+  const systemPrompt = `You are a Content Translation Agent for Varabhi. Your job is to create authentic, audience-aware content from insights.
 
 CORE PRINCIPLES:
 - Write for the given audience segment (non-technical: simple, visual, one benefit; technical: reasoning, trade-offs, honest depth)

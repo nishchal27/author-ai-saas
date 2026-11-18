@@ -1,6 +1,6 @@
-# AuthorAI product documentation
+# Varabhi product documentation
 
-This folder is the **source of truth for AuthorAI product direction**.
+This folder is the **source of truth for Varabhi product direction**.
 
 Use it to keep engineering, UX, and scope decisions aligned as the product evolves. It does **not** replace inspection of the live codebase, and it does **not** claim that planned features already exist.
 
@@ -14,6 +14,9 @@ Use it to keep engineering, UX, and scope decisions aligned as the product evolv
 
 | Document | Purpose | Notes |
 |----------|---------|--------|
+| [docs/README.md](../README.md) | Central documentation index and authority hierarchy | Start here for navigation |
+| [AUTHORAI_TECHNICAL_ARCHITECTURE.md](../architecture/AUTHORAI_TECHNICAL_ARCHITECTURE.md) | How the application should be engineered | Subordinate to this folder on *scope*; authoritative on engineering shape |
+| [AUTHORAI_AI_SYSTEM.md](../architecture/AUTHORAI_AI_SYSTEM.md) | How AI capabilities must work | Task routing, providers, grounding, quality control |
 | [AUTHORAI_V2_PRODUCT_AND_CODEBASE_AUDIT.md](../../AUTHORAI_V2_PRODUCT_AND_CODEBASE_AUDIT.md) | Evidence-based audit of what the codebase actually implements | **Preserve.** Do not overwrite. Technical reality check. |
 | [README.md](../../README.md) | Repo setup and historical product description | May lag official V2 direction; prefer this folder + audit for decisions |
 | [LAUNCH_CHECKLIST.md](../../LAUNCH_CHECKLIST.md) | Older launch checklist | Not authoritative for V2 scope |
@@ -23,9 +26,11 @@ Use it to keep engineering, UX, and scope decisions aligned as the product evolv
 ## How to use these docs
 
 1. **What should we build?** → `AUTHORAI_PRODUCT_DIRECTION_V2.md`
-2. **What already exists in code?** → Audit + inspect implementation
-3. **Conflict on scope?** → Product direction wins
-4. **Conflict on current behavior?** → Code and audit win
+2. **How should we engineer it?** → [`../architecture/AUTHORAI_TECHNICAL_ARCHITECTURE.md`](../architecture/AUTHORAI_TECHNICAL_ARCHITECTURE.md)
+3. **How should AI work?** → [`../architecture/AUTHORAI_AI_SYSTEM.md`](../architecture/AUTHORAI_AI_SYSTEM.md)
+4. **What already exists in code?** → Audit + inspect implementation
+5. **Conflict on scope?** → Product direction wins
+6. **Conflict on current behavior?** → Code and audit win
 
 ## Rules for contributors
 

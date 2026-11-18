@@ -73,7 +73,7 @@ export function Features() {
             </span>
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            AuthorAI adapts to YOUR product. Different products need different strategies — we figure out which one fits yours.
+            Varabhi adapts to YOUR product. Different products need different strategies — we figure out which one fits yours.
           </p>
         </div>
 

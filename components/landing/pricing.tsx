@@ -141,7 +141,7 @@ export function Pricing() {
           <p className="text-sm text-muted-foreground">
             Need a custom plan?{" "}
             <a
-              href="mailto:support@founderos.com"
+              href="mailto:support@varabhi.com"
               className="text-primary hover:underline"
             >
               Contact us

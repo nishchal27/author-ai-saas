@@ -5,16 +5,26 @@ import { ClerkProvider } from "@clerk/nextjs"
 import { Analytics } from "@vercel/analytics/react"
 import { QueryProvider } from "@/components/providers/query-provider"
 import { Toaster } from "@/components/ui/toaster"
+import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/constants"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Founder OS - Founder-first Marketing & Visibility System",
-  description: "Turn your real product activity into trust-building content without the marketing stress. No marketing expertise needed. No fake hype. Just your real work transformed into credible, conversion-ready content.",
-  keywords: ["founder marketing", "SaaS marketing", "content generation", "founder tools", "marketing automation", "content creation"],
+  title: `${PRODUCT_NAME} - ${PRODUCT_TAGLINE}`,
+  description:
+    "Teach Varabhi about your brand. Get clear guidance on what to create and platform-specific drafts that stay on-brand — without a marketing team.",
+  keywords: [
+    "brand marketing",
+    "AI content",
+    "marketing workspace",
+    "brand voice",
+    "content drafts",
+    "small business marketing",
+  ],
   openGraph: {
-    title: "Founder OS - Founder-first Marketing & Visibility System",
-    description: "Turn your real product activity into trust-building content without the marketing stress.",
+    title: `${PRODUCT_NAME} - ${PRODUCT_TAGLINE}`,
+    description:
+      "Teach Varabhi about your brand. Decide what to create and produce consistent, on-brand marketing content.",
     type: "website",
   },
 }

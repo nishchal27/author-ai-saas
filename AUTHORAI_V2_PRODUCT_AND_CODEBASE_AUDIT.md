@@ -4,6 +4,8 @@
 **Scope:** Evidence-based audit of the local `author-ai-saas` repository. No application code was modified except creation of this report.  
 **Method:** Inspected Prisma schema, API routes, `lib/*` AI/strategy modules, dashboard/onboarding UI, middleware, env *key names* only, and launch checks (`tsc`, `npm run build`, `npm run lint`, `npm run db:verify`). Documentation was treated as claims to verify, not truth.
 
+> **Post-audit note:** After this audit, product branding was renamed from AuthorAI / Founder OS to **Varabhi**. Findings below are preserved as historical evidence of the codebase at audit time and were not rewritten.
+
 ---
 
 ## Should we use this codebase or start again?

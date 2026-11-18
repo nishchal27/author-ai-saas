@@ -1,5 +1,5 @@
 /**
- * Populate database with realistic seed data for testing AuthorAI.
+ * Populate database with realistic seed data for testing Varabhi.
  *
  * Usage:
  *   Set POPULATE_CLERK_ID to your Clerk user ID (from Clerk Dashboard or after signing in once).
@@ -154,7 +154,7 @@ async function main() {
         name: "Seed Founder",
         tier: "premium",
         founderBio:
-          "Indie founder building in public. I ship devtools and teach others to ship. Previously eng at a few startups; now focused on AuthorAI and Founder OS.",
+          "Indie founder building in public. I ship devtools and teach others to ship. Previously eng at a few startups; now focused on Varabhi.",
         brandVoice: JSON.stringify({
           tone: "Direct, honest, build-in-public. No corporate speak.",
         }),
@@ -181,13 +181,13 @@ async function main() {
 
   // ---------- 2. Products (2 different products; find or create per user) ----------
   let product1 = await db.product.findFirst({
-    where: { userId, name: "AuthorAI" },
+    where: { userId, name: "Varabhi" },
   })
   if (!product1) {
     product1 = await db.product.create({
       data: {
         userId,
-        name: "AuthorAI",
+        name: "Varabhi",
         type: "saas",
         industry: "devtools",
         audience: "developers",
@@ -195,8 +195,8 @@ async function main() {
         stage: "growing",
         salesMotion: "self_serve",
         description:
-          "Product-aware marketing assistant. Turns your product profile and real activity (commits, feedback) into strategy and content so you can build in public consistently.",
-        website: "https://authorai.example.com",
+          "Brand-aware AI marketing workspace. Turns your brand profile and real activity into strategy and content so you can stay consistent without a full-time marketer.",
+        website: "https://varabhi.example.com",
         competitors: "Buffer, Hypefury, Taplio (generic); we're product-first and strategy-first.",
         techStackJson: JSON.stringify([
           { name: "Next.js", version: "14", note: "App Router" },
@@ -209,13 +209,13 @@ async function main() {
   }
 
   let product2 = await db.product.findFirst({
-    where: { userId, name: "Founder OS" },
+    where: { userId, name: "Ship Cohort" },
   })
   if (!product2) {
     product2 = await db.product.create({
       data: {
         userId,
-        name: "Founder OS",
+        name: "Ship Cohort",
         type: "course",
         industry: "education",
         audience: "smb_owners",
@@ -224,7 +224,7 @@ async function main() {
         salesMotion: "creator_led",
         description:
           "A practical course: idea → MVP → launch → first 100 users. Covers product, distribution, and content so you ship in public with a system.",
-        website: "https://founderos.example.com",
+        website: "https://shipcohort.example.com",
         competitors: "Generic business courses; we're focused on indie/solo founders.",
         isActive: true,
       },
@@ -260,7 +260,7 @@ async function main() {
 
   // ---------- 4. Integrations (find or create per user) ----------
   const integrationTypes = [
-    { type: "github", provider: "github", config: { repo: "owner/author-ai" } },
+    { type: "github", provider: "github", config: { repo: "owner/varabhi" } },
     { type: "linkedin", provider: "linkedin", config: {} },
     { type: "twitter", provider: "twitter", config: {} },
   ]
@@ -292,7 +292,7 @@ async function main() {
       title: "feat: add product-scoped content generation",
       description:
         "Content generation now uses active product and strategy. Updated API and UI to pass productId and strategy context to Claude.",
-      metadata: JSON.stringify({ sha: "a1b2c3d4", repo: "owner/author-ai", branch: "main" }),
+      metadata: JSON.stringify({ sha: "a1b2c3d4", repo: "owner/varabhi", branch: "main" }),
       processed: true,
       createdAt: subDays(now, 5),
     },
@@ -303,7 +303,7 @@ async function main() {
       title: "PR #42: Calendar view for scheduled posts",
       description:
         "Week view with scheduled/published/failed states. Integrates with /api/schedules.",
-      metadata: JSON.stringify({ prNumber: 42, repo: "owner/author-ai" }),
+      metadata: JSON.stringify({ prNumber: 42, repo: "owner/varabhi" }),
       processed: true,
       createdAt: subDays(now, 4),
     },
@@ -332,7 +332,7 @@ async function main() {
       source: "github",
       title: "fix: analytics aggregation for multiple platforms",
       description: "Fixed double-counting when same draft was scheduled on two platforms.",
-      metadata: JSON.stringify({ sha: "e5f6g7h8", repo: "owner/author-ai" }),
+      metadata: JSON.stringify({ sha: "e5f6g7h8", repo: "owner/varabhi" }),
       processed: false,
       createdAt: subDays(now, 1),
     },
@@ -494,7 +494,7 @@ async function main() {
       "One launch post gets lost. Consistent ship logs, metrics, and user proof build trust. We're doubling down on build-in-public content that fits your product.",
       "We don't just suggest 'post more.' We look at your product (SaaS, course, API...) and audience (devs, SMB...) and recommend platforms, content types, and cadence—plus what NOT to do.",
       "Students asked for a way to go from 'my product' to 'my content ideas.' We added a worksheet: map features → problems solved → content angles. Try it in Module 3.",
-      "We run Founder OS as cohorts. Here's how we use threads, blogs, and carousels between cohorts to build authority and keep enrollment healthy.",
+      "We run Ship Cohort as cohorts. Here's how we use threads, blogs, and carousels between cohorts to build authority and keep enrollment healthy.",
     ]
     const statuses: Array<"draft" | "approved" | "scheduled" | "published"> = [
       "published",
