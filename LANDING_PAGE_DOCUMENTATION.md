@@ -2,7 +2,7 @@
 
 ## Overview
 
-A conversion-focused, professional landing page for Founder OS with a cohesive design system, smooth animations, and clear value proposition.
+A conversion-focused, professional landing page for Varabhi with a cohesive design system, smooth animations, and clear value proposition.
 
 ## Design System
 
@@ -100,7 +100,7 @@ Staggered delays for sequential animations (0.05s - 0.15s increments)
 ### 5. Value Proposition (`components/landing/value-proposition.tsx`)
 
 **Features**:
-- Comparison table (Founder OS vs Traditional Tools)
+- Comparison table (Varabhi vs Traditional Tools)
 - Key benefits cards
 - Visual checkmarks/X marks
 - Professional table design

@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { Sparkles, Github, Twitter, Linkedin } from "lucide-react"
+import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/constants"
 
 const footerLinks = {
   Product: [
@@ -30,11 +31,11 @@ export function Footer() {
           <div className="lg:col-span-2">
             <Link href="/" className="flex items-center space-x-2 mb-4">
               <Sparkles className="h-6 w-6 text-primary" />
-              <span className="text-xl font-bold text-white">Founder OS</span>
+              <span className="text-xl font-bold text-white">{PRODUCT_NAME}</span>
             </Link>
             <p className="text-sm text-gray-400 max-w-sm">
-              Founder-first Marketing & Visibility System. Turn your real work
-              into trust-building content without the marketing stress.
+              {PRODUCT_TAGLINE}. Teach it your brand once — then get ideas and
+              drafts that stay consistent.
             </p>
             <div className="flex items-center space-x-4 mt-6">
               <a
@@ -87,7 +88,7 @@ export function Footer() {
         {/* Bottom */}
         <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row items-center justify-between">
           <p className="text-sm text-gray-400">
-            © {new Date().getFullYear()} Founder OS. All rights reserved.
+            © {new Date().getFullYear()} {PRODUCT_NAME}. All rights reserved.
           </p>
           <p className="text-sm text-gray-400 mt-4 md:mt-0">
             Built for founders, by founders.

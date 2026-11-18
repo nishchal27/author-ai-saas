@@ -13,8 +13,8 @@ import { getTwitterAnalytics } from "@/lib/twitter"
 
 // Initialize Inngest client
 export const inngest = new Inngest({
-  id: "founder-os",
-  name: "Founder OS",
+  id: "varabhi",
+  name: "Varabhi",
 })
 
 /**

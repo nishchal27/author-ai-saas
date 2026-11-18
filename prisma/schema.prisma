@@ -77,7 +77,7 @@ model Product {
 }
 
 // MarketingStrategy: AI-generated, opinionated recommendations per product
-// This is the "Strategy Decision Layer" - the heart of AuthorAI's value
+// This is the "Strategy Decision Layer" - the heart of Varabhi's value
 model MarketingStrategy {
   id          String   @id @default(cuid())
   productId   String   @unique

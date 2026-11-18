@@ -46,7 +46,7 @@ export function ValueProposition() {
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Different products need completely different approaches. 
-            AuthorAI figures out what works for yours.
+            Varabhi figures out what works for yours.
           </p>
         </div>
 

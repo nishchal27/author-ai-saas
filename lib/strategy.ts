@@ -1,7 +1,7 @@
 /**
  * Strategy Decision Engine
  * 
- * This is the heart of AuthorAI - the layer that decides marketing strategy
+ * This is the heart of Varabhi - the layer that decides marketing strategy
  * based on the PRODUCT, not user preferences.
  * 
  * Core principle: The product profile dictates strategy.

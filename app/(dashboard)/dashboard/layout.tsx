@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { UserButton } from "@clerk/nextjs"
 import { Target } from "lucide-react"
+import { PRODUCT_NAME } from "@/lib/constants"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { NavLinks } from "@/components/navigation/nav-links"
 import { DashboardProductScope } from "@/components/navigation/dashboard-product-scope"
@@ -36,7 +37,7 @@ export default async function DashboardLayout({
           <div className="flex items-center gap-6">
             <Link href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
               <Target className="h-5 w-5 text-primary" />
-              <span className="text-xl font-semibold">AuthorAI</span>
+              <span className="text-xl font-semibold">{PRODUCT_NAME}</span>
             </Link>
             <DashboardProductScope />
             <NavLinks />

@@ -1,4 +1,4 @@
-# Founder OS - Launch Checklist
+# Varabhi - Launch Checklist
 
 ## Pre-Launch Checklist
 

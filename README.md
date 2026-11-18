@@ -1,10 +1,10 @@
-# Founder OS - Founder-first + product centric Marketing & Visibility System
+# Varabhi - Brand-aware AI Marketing Workspace
 
-AuthorAI is a decision-first marketing assistant that adapts to **the PRODUCT being marketed**, The product's type, domain, audience, and maturity drive all marketing decisions
+Varabhi is a decision-first marketing assistant that adapts to **the PRODUCT being marketed**. The product's type, domain, audience, and maturity drive all marketing decisions.
 
-same is for solo founder who build in public, promote themselves and their products.
+The same applies for solo founders who build in public and promote themselves and their products.
 
-Author AI have both options. user can select / toggle options as per their need.
+Varabhi supports both options — users can select or toggle as needed.
 
 A production-grade SaaS that helps solo founders turn their real product + product activity into trust-building, conversion-ready content without the marketing stress.
 
@@ -63,7 +63,7 @@ cp .env.example .env
 
 Add the following to your `.env`:
 ```
-DATABASE_URL="postgresql://user:password@localhost:5432/founderos"
+DATABASE_URL="postgresql://user:password@localhost:5432/varabhi"
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
 CLERK_SECRET_KEY=your_clerk_secret_key
 ANTHROPIC_API_KEY=your_anthropic_api_key

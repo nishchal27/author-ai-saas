@@ -1,4 +1,4 @@
-# Founder OS - Setup Guide
+# Varabhi - Setup Guide
 
 ## Quick Start
 
@@ -14,7 +14,7 @@ Create a `.env` file in the root directory:
 
 ```env
 # Database
-DATABASE_URL="postgresql://user:password@localhost:5432/founderos"
+DATABASE_URL="postgresql://user:password@localhost:5432/varabhi"
 
 # Clerk Authentication
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
@@ -47,7 +47,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 1. Install PostgreSQL if not already installed
 2. Create a database:
 ```sql
-CREATE DATABASE founderos;
+CREATE DATABASE varabhi;
 ```
 3. Update `DATABASE_URL` in `.env`
 
@@ -118,7 +118,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 1. Go to GitHub Settings → Developer settings → Personal access tokens
 2. Generate a new token with `repo` scope
-3. Go to Settings in Founder OS
+3. Go to Settings in Varabhi
 4. Enter your token and repository (format: `owner/repo`)
 5. Click "Connect GitHub"
 6. Use the GitHub sync feature to automatically track commits and PRs

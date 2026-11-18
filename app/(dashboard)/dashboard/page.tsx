@@ -52,7 +52,7 @@ function NoProductState({ onAddProduct }: { onAddProduct: () => void }) {
       <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
         <Package className="h-8 w-8 text-primary" />
       </div>
-      <h2 className="text-2xl font-bold mb-2">Welcome to AuthorAI</h2>
+      <h2 className="text-2xl font-bold mb-2">Welcome to Varabhi</h2>
       <p className="text-muted-foreground max-w-md mb-6">
         Tell us about your product and we'll create a personalized marketing strategy —
         which platforms to use, what content to create, and what to skip.
