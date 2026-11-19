@@ -6,8 +6,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Session/direct URL for migrations & introspection. Prefer session pooler (:5432)
+  // when the db.<ref>.supabase.co host is IPv6-only and unreachable from the local network.
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -29,12 +32,16 @@ model User {
   brandVoice String? @db.Text
 
   // Relations
-  products      Product[]
-  integrations  Integration[]
-  activities    Activity[]
-  insights      Insight[]
-  contentDrafts ContentDraft[]
-  schedules     Schedule[]
+  products           Product[]
+  integrations       Integration[]
+  activities         Activity[]
+  insights           Insight[]
+  contentDrafts      ContentDraft[]
+  schedules          Schedule[]
+  contentPillars     ContentPillar[]
+  contentIdeas       ContentIdea[]
+  weeklyContentPlans WeeklyContentPlan[]
+  aiUsageEvents      AiUsageEvent[]
 }
 
 // ============================================
@@ -62,18 +69,34 @@ model Product {
   competitors String?  @db.Text  // Known competitors (helps AI understand positioning)
   techStackJson String? @db.Text  // JSON array of { name, version?, note? } for build in public
 
+  // Brand Intelligence (Phase 2) — proposed vs approved; AI never auto-approves
+  brandSummaryProposed   String?   @db.Text
+  brandSummaryApproved   String?   @db.Text
+  brandFactsProposed     String?   @db.Text  // JSON: BrandFact[]
+  brandFactsApproved     String?   @db.Text  // JSON: BrandFact[]
+  brandVoiceJson         String?   @db.Text  // JSON: { tone, examples?, personality? }
+  brandApprovedAt        DateTime?
+  brandProfileStatus     String    @default("incomplete") // incomplete | proposed | approved
+  brandIdeasJson         String?   @db.Text  // last ideas.generate batch (JSON)
+  brandSuggestionsJson   String?   @db.Text  // last suggestions.generate batch (JSON)
+
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // Relations
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  strategy    MarketingStrategy?
-  activities  Activity[]
-  insights    Insight[]
-  contentDrafts ContentDraft[]
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  strategy           MarketingStrategy?
+  activities         Activity[]
+  insights           Insight[]
+  contentDrafts      ContentDraft[]
+  contentPillars     ContentPillar[]
+  contentIdeas       ContentIdea[]
+  weeklyContentPlans WeeklyContentPlan[]
+  aiUsageEvents      AiUsageEvent[]
 
   @@index([userId])
+  @@index([userId, brandProfileStatus])
 }
 
 // MarketingStrategy: AI-generated, opinionated recommendations per product
@@ -181,7 +204,8 @@ model ContentDraft {
   id          String   @id @default(cuid())
   userId      String
   productId   String?  // Links content to specific product (inherits strategy)
-  insightId   String
+  insightId   String?  // Optional — Brand → Idea → Draft path does not require Insight
+  contentIdeaId String? // Optional originating ContentIdea
   type        String   // "post", "blog", "carousel", "thread", "caption"
   platform    String?  // "linkedin", "twitter", "blog", "facebook", etc.
   title       String?
@@ -202,6 +226,7 @@ model ContentDraft {
   generationReason String?  @db.Text // Why we're creating this content
   audienceContext  String?  @db.Text // Optional context for audience
   whyThisContent   String?  @db.Text // AI-generated one-liner: why we suggest this content
+  generationMetaJson String? @db.Text // prompt/schema/task metadata only — never prompts/secrets
 
   // Content Intelligence: audience segment and persona (who / how)
   audienceSegment String?  // "non_technical" | "technical"
@@ -220,14 +245,140 @@ model ContentDraft {
   sourceDraft   ContentDraft?  @relation("RepurposeLineage", fields: [sourceDraftId], references: [id], onDelete: SetNull)
   repurposedDrafts ContentDraft[] @relation("RepurposeLineage")
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  insight Insight @relation(fields: [insightId], references: [id], onDelete: Cascade)
-  schedules Schedule[]
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product      Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  insight      Insight?      @relation(fields: [insightId], references: [id], onDelete: SetNull)
+  contentIdea  ContentIdea?  @relation(fields: [contentIdeaId], references: [id], onDelete: SetNull)
+  schedules    Schedule[]
+  weeklyPlanItems WeeklyPlanItem[]
 
   @@index([userId, status])
   @@index([productId])
   @@index([insightId])
+  @@index([contentIdeaId])
+  @@index([userId, productId])
+}
+
+// ============================================
+// V2 CONTENT DOMAIN (Phase 3)
+// ============================================
+
+model ContentPillar {
+  id              String   @id @default(cuid())
+  userId          String
+  productId       String
+  name            String
+  description     String   @db.Text
+  purpose         String?  @db.Text // Strategic purpose
+  approvalStatus  String   @default("proposed") // proposed | approved | rejected
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  source          String   @default("ai") // ai | user
+  generationMetaJson String? @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ideas   ContentIdea[]
+
+  @@index([userId, productId])
+  @@index([productId, isActive, sortOrder])
+}
+
+model ContentIdea {
+  id              String   @id @default(cuid())
+  userId          String
+  productId       String
+  contentPillarId String?
+  title           String
+  concept         String   @db.Text
+  platform        String
+  audience        String
+  objective       String
+  format          String
+  explanation     String?  @db.Text
+  status          String   @default("proposed") // proposed | saved | rejected | converted
+  source          String   @default("ai") // ai | user
+  generationMetaJson String? @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  contentPillar ContentPillar?  @relation(fields: [contentPillarId], references: [id], onDelete: SetNull)
+  drafts        ContentDraft[]
+  weeklyPlanItems WeeklyPlanItem[]
+
+  @@index([userId, productId])
+  @@index([productId, status])
+  @@index([contentPillarId])
+}
+
+model WeeklyContentPlan {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  weekStart DateTime // UTC Monday 00:00 for the week
+  status    String   @default("active") // active | archived
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  items   WeeklyPlanItem[]
+
+  @@unique([productId, weekStart])
+  @@index([userId, productId])
+}
+
+model WeeklyPlanItem {
+  id             String   @id @default(cuid())
+  planId         String
+  userId         String
+  productId      String
+  contentIdeaId  String?
+  contentDraftId String?
+  status         String   @default("planned") // planned | in_progress | completed
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  plan         WeeklyContentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  contentIdea  ContentIdea?      @relation(fields: [contentIdeaId], references: [id], onDelete: SetNull)
+  contentDraft ContentDraft?     @relation(fields: [contentDraftId], references: [id], onDelete: SetNull)
+
+  @@unique([planId, contentIdeaId])
+  @@unique([planId, contentDraftId])
+  @@index([userId, productId])
+  @@index([planId, sortOrder])
+}
+
+model AiUsageEvent {
+  id               String   @id @default(cuid())
+  userId           String
+  productId        String?
+  requestId        String   // Groups provider attempts under one user AI task
+  idempotencyKey   String   @unique
+  taskId           String
+  provider         String
+  model            String
+  attemptKind      String   // primary | retry | fallback | repair | review_nested
+  attemptIndex     Int      @default(0)
+  inputTokens      Int?
+  outputTokens     Int?
+  estimatedCostUsd Float?
+  status           String   // success | failed | provider_error | validation_fail | quality_fail
+  latencyMs        Int?
+  createdAt        DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([userId, productId, createdAt])
+  @@index([requestId])
+  @@index([taskId, createdAt])
 }
 
 model Schedule {

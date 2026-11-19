@@ -1,36 +1,32 @@
 import Anthropic from "@anthropic-ai/sdk"
-import OpenAI from "openai"
+import { hasAnyAiProviderKey } from "@/lib/env"
+import { completeText, MODEL_CATALOG, resolveTaskModel } from "@/lib/ai"
 
-// Determine which API to use based on available keys
-const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY
-const hasOpenAIKey = !!process.env.OPENAI_API_KEY
-
-if (!hasAnthropicKey && !hasOpenAIKey) {
-  throw new Error("Either ANTHROPIC_API_KEY or OPENAI_API_KEY must be set")
+function preferAnthropic(): boolean {
+  return !!process.env.ANTHROPIC_API_KEY
 }
 
-// Initialize clients
-let anthropicClient: Anthropic | null = null
-let openaiClient: OpenAI | null = null
-
-if (hasAnthropicKey) {
-  anthropicClient = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY!,
-  })
+function preferOpenAI(): boolean {
+  return !process.env.ANTHROPIC_API_KEY && !!process.env.OPENAI_API_KEY
 }
 
-if (hasOpenAIKey) {
-  openaiClient = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY!,
-  })
+function preferOpenRouter(): boolean {
+  return (
+    !process.env.ANTHROPIC_API_KEY &&
+    !process.env.OPENAI_API_KEY &&
+    !!process.env.OPENROUTER_API_KEY
+  )
 }
 
-// Determine which provider to use (prefer Anthropic if both are available)
-const useAnthropic = hasAnthropicKey
-const useOpenAI = !hasAnthropicKey && hasOpenAIKey
-
-// Export the active client for backward compatibility (strategy.ts uses this)
-export const anthropic = anthropicClient
+/** Lazy Anthropic accessor kept for rare direct callers; prefer executeAi / callAI. */
+export const anthropic = {
+  get messages() {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error("ANTHROPIC_API_KEY is not configured")
+    }
+    return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }).messages
+  },
+} as Anthropic
 
 export interface InsightExtraction {
   coreProblem: string
@@ -86,46 +82,32 @@ export interface StrategyContext {
  * Maps user tier to model name for the active provider.
  */
 export function getModelForTier(userTier: "standard" | "premium" = "standard"): string {
-  if (useAnthropic) {
-    return userTier === "premium" 
-      ? "claude-3-5-opus-20241022"
-      : "claude-3-5-sonnet-20241022"
-  } else if (useOpenAI) {
-    // Map to OpenAI models: premium = GPT-4 Turbo, standard = GPT-4o
-    // gpt-4o is the latest and best model, using it for both tiers
-    return "gpt-4o"
+  if (!hasAnyAiProviderKey() && !process.env.OPENROUTER_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY, OPENAI_API_KEY, or OPENROUTER_API_KEY must be set")
   }
-  throw new Error("No AI provider available")
+  return resolveTaskModel("content.generate", { premium: userTier === "premium" })
 }
 
 /**
- * Maps content type and user tier to model name
- * Blog content always uses the premium model for maximum quality
+ * Maps content type and user tier to model name via the central task registry.
+ * Blog content always uses the premium model for maximum quality.
  */
 function getModelForContent(
   contentType: "post" | "blog" | "carousel" | "thread" | "caption",
   userTier: "standard" | "premium" = "standard"
 ): string {
-  if (useAnthropic) {
-    // Blog content always uses Opus for maximum quality
-    if (contentType === "blog") {
-      return "claude-3-5-opus-20241022"
-    }
-    // Premium tier uses Opus, standard tier uses Sonnet
-    return userTier === "premium"
-      ? "claude-3-5-opus-20241022"
-      : "claude-3-5-sonnet-20241022"
-  } else if (useOpenAI) {
-    // Blog content and premium tier use GPT-4o (best model)
-    // Standard tier also uses GPT-4o (cost-effective and high quality)
-    return "gpt-4o"
+  if (!hasAnyAiProviderKey() && !process.env.OPENROUTER_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY, OPENAI_API_KEY, or OPENROUTER_API_KEY must be set")
   }
-  throw new Error("No AI provider available")
+  return resolveTaskModel("content.generate", {
+    premium: userTier === "premium",
+    contentType,
+  })
 }
 
 /**
- * Unified function to call either Anthropic or OpenAI
- * Exported for use in other modules like strategy.ts
+ * Unified text generation via central AI orchestration adapters.
+ * Prefer `executeAi({ task })` for new code.
  */
 export async function callAI(
   systemPrompt: string,
@@ -133,47 +115,35 @@ export async function callAI(
   model: string,
   maxTokens: number
 ): Promise<string> {
-  if (useAnthropic && anthropicClient) {
-    const message = await anthropicClient.messages.create({
-      model,
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: userPrompt,
-        },
-      ],
-    })
-
-    const content = message.content[0]
-    if (content.type !== "text") {
-      throw new Error("Unexpected response type from AI")
-    }
-    return content.text
-  } else if (useOpenAI && openaiClient) {
-    const completion = await openaiClient.chat.completions.create({
-      model,
-      max_tokens: maxTokens,
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
-        {
-          role: "user",
-          content: userPrompt,
-        },
-      ],
-    })
-
-    const content = completion.choices[0]?.message?.content
-    if (!content) {
-      throw new Error("No content in AI response")
-    }
-    return content
+  if (!hasAnyAiProviderKey() && !process.env.OPENROUTER_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY, OPENAI_API_KEY, or OPENROUTER_API_KEY must be set")
   }
-  throw new Error("No AI provider available")
+
+  const provider = preferAnthropic()
+    ? "anthropic"
+    : preferOpenAI()
+      ? "openai"
+      : preferOpenRouter()
+        ? "openrouter"
+        : "anthropic"
+
+  // If a legacy Anthropic snapshot id is passed, remap to current catalog defaults.
+  const remappedModel =
+    model.includes("claude-3-5-opus") || model.includes("claude-3-opus")
+      ? MODEL_CATALOG.anthropic.premium()
+      : model.includes("claude-3-5-sonnet") || model.includes("claude-3-sonnet")
+        ? MODEL_CATALOG.anthropic.standard()
+        : model.includes("claude-3-5-haiku") || model.includes("claude-3-haiku")
+          ? MODEL_CATALOG.anthropic.fast()
+          : model
+
+  return completeText({
+    system: systemPrompt,
+    user: userPrompt,
+    model: remappedModel,
+    maxTokens,
+    provider,
+  })
 }
 
 /**

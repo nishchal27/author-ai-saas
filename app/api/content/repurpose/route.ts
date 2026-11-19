@@ -1,11 +1,16 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
 import { ensureUserForClerkId } from "@/lib/users"
-import { checkRateLimit } from "@/lib/rate-limit"
+import { checkAiRateLimits } from "@/lib/rate-limit"
 import { parseBody, contentRepurposeSchema } from "@/lib/validation"
 import { generateContent, ProductContext, StrategyContext } from "@/lib/claude"
 import { decideContentOptions } from "@/lib/content-decision"
 import type { AudienceSegment, ContentIntent, Persona } from "@/lib/content-intelligence"
+import {
+  assembleBrandContext,
+  toLegacyProductContext,
+  toLegacyStrategyContext,
+} from "@/lib/brand-context/assembler"
 import { NextResponse } from "next/server"
 
 /**
@@ -19,7 +24,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const rateLimit = checkRateLimit(userId)
+    const user = await ensureUserForClerkId(userId)
+    const rateLimit = await checkAiRateLimits(user.id)
     if (rateLimit) return rateLimit
 
     const raw = await req.json().catch(() => null)
@@ -34,52 +40,45 @@ export async function POST(req: Request) {
       platform: platformOverride,
     } = parsed.data
 
-    const user = await ensureUserForClerkId(userId)
-
     const sourceDraft = await db.contentDraft.findFirst({
       where: { id: sourceDraftId, userId: user.id },
       include: {
         insight: true,
+        contentIdea: true,
         product: { include: { strategy: true } },
       },
     })
 
-    if (!sourceDraft || !sourceDraft.insight) {
-      return NextResponse.json(
-        { error: "Draft or linked insight not found" },
-        { status: 404 }
-      )
+    if (!sourceDraft) {
+      return NextResponse.json({ error: "Draft not found" }, { status: 404 })
     }
 
     const insight = sourceDraft.insight
+    const idea = sourceDraft.contentIdea
     const product = sourceDraft.product
     const targetProductId = sourceDraft.productId
 
     let productContext: ProductContext | undefined
     let strategyContext: StrategyContext | undefined
+    let brandCtxIdentity: { audience: string; type: string } | null = null
+    let brandVoice: string | undefined
 
     if (product) {
-      productContext = {
-        name: product.name,
-        type: product.type,
-        industry: product.industry,
-        audience: product.audience,
-        stage: product.stage,
-        description: product.description || undefined,
-        audienceDetail: product.audienceDetail ?? undefined,
-      }
-      if (product.strategy) {
-        try {
-          strategyContext = {
-            tone: JSON.parse(product.strategy.tone),
-            platforms: JSON.parse(product.strategy.platforms),
-            proofTypes: JSON.parse(product.strategy.proofTypes),
-            cadence: JSON.parse(product.strategy.cadence),
-            antiPatterns: JSON.parse(product.strategy.antiPatterns),
-          }
-        } catch (e) {
-          console.error("Error parsing strategy:", e)
+      try {
+        const brandCtx = await assembleBrandContext({
+          userId: user.id,
+          productId: product.id,
+          task: "content.repurpose",
+        })
+        productContext = toLegacyProductContext(brandCtx)
+        strategyContext = toLegacyStrategyContext(brandCtx) ?? undefined
+        brandCtxIdentity = {
+          audience: brandCtx.identity.audience,
+          type: brandCtx.identity.type,
         }
+        brandVoice = brandCtx.approved.voice?.tone
+      } catch (e) {
+        console.error("Brand context assemble failed:", e)
       }
     }
 
@@ -87,13 +86,17 @@ export async function POST(req: Request) {
       (intentOverride as ContentIntent) || (sourceDraft.intent as ContentIntent) || "product_trust"
 
     const decision = decideContentOptions(
-      product ?? { audience: "", type: "" },
+      brandCtxIdentity ?? product ?? { audience: "", type: "" },
       product?.strategy ?? null,
       {
         audienceSegment: audienceSegmentOverride as AudienceSegment | undefined,
         intent: intentForDecision,
         persona: personaOverride as Persona | undefined,
-        insightSummary: insight.solution || insight.coreProblem,
+        insightSummary:
+          insight?.solution ||
+          insight?.coreProblem ||
+          idea?.concept ||
+          sourceDraft.content.slice(0, 400),
       }
     )
 
@@ -103,19 +106,34 @@ export async function POST(req: Request) {
         : decision.suggestedFormat
     const platform = platformOverride ?? decision.suggestedPlatform
 
-    const bv = (user as { brandVoice?: string | null }).brandVoice
-    const brandVoice = bv ? JSON.parse(bv).tone : undefined
+    if (!brandVoice && user.brandVoice) {
+      try {
+        brandVoice = JSON.parse(user.brandVoice).tone
+      } catch {
+        brandVoice = undefined
+      }
+    }
     const userTier = (user.tier === "premium" ? "premium" : "standard") as "standard" | "premium"
 
     const contentData = await generateContent(
-      {
-        coreProblem: insight.coreProblem,
-        solution: insight.solution,
-        audience: insight.audience,
-        whyMatters: insight.whyMatters,
-        impact: insight.impact || undefined,
-        themes: insight.themes ? JSON.parse(insight.themes) : undefined,
-      },
+      insight
+        ? {
+            coreProblem: insight.coreProblem,
+            solution: insight.solution,
+            audience: insight.audience,
+            whyMatters: insight.whyMatters,
+            impact: insight.impact || undefined,
+            themes: insight.themes ? JSON.parse(insight.themes) : undefined,
+          }
+        : {
+            coreProblem: idea?.objective || sourceDraft.title || "Repurpose draft",
+            solution: idea?.concept || sourceDraft.content.slice(0, 1500),
+            audience: idea?.audience || "audience",
+            whyMatters:
+              idea?.explanation || sourceDraft.generationReason || "Brand content",
+            impact: undefined,
+            themes: undefined,
+          },
       type as "post" | "blog" | "carousel" | "thread" | "caption",
       platform as "linkedin" | "twitter" | "blog" | "facebook" | undefined,
       brandVoice,
@@ -134,7 +152,8 @@ export async function POST(req: Request) {
       data: {
         userId: user.id,
         productId: targetProductId || null,
-        insightId: insight.id,
+        insightId: insight?.id ?? null,
+        contentIdeaId: idea?.id ?? sourceDraft.contentIdeaId ?? null,
         type,
         platform: platform || null,
         title: contentData.title || null,

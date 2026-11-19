@@ -14,6 +14,7 @@
  */
 
 import { callAI } from "./claude"
+import { resolveTaskModel, parseAndValidate, strategyGenerateSchema } from "@/lib/ai"
 
 // ============================================
 // PRODUCT PROFILE TYPES
@@ -392,19 +393,11 @@ export async function generateMarketingStrategy(
   // Step 2: Refine based on audience
   const refinedPattern = refineForAudience(basePattern, product.audience, product.type)
   
-  // Step 3: Use AI to generate human-readable explanations and fill gaps
-  // Determine model based on available provider
-  const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY
-  const hasOpenAIKey = !!process.env.OPENAI_API_KEY
-  const useAnthropic = hasAnthropicKey
-  const useOpenAI = !hasAnthropicKey && hasOpenAIKey
-  
-  const model = useAnthropic
-    ? (tier === "premium" ? "claude-3-5-opus-20241022" : "claude-3-5-sonnet-20241022")
-    : useOpenAI
-    ? "gpt-4o" // Using gpt-4o for both tiers (best and cost-effective)
-    : "gpt-4o" // fallback
-  
+  // Step 3: Use AI via central task model resolution (strategy.generate)
+  const model = resolveTaskModel("strategy.generate", {
+    premium: tier === "premium",
+  })
+ 
   const systemPrompt = `You are a strategic marketing advisor for B2B founders. 
 Your role is to provide opinionated, conservative, and explainable marketing recommendations.
 
@@ -465,19 +458,40 @@ Return ONLY valid JSON matching this structure (do NOT include visualStyle):
   try {
     const responseText = await callAI(systemPrompt, userPrompt, model, 3000)
 
-    // Parse JSON from response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      throw new Error("No JSON found in response")
+    // Structured parse + Zod validation (central AI parse helpers)
+    const parsed = parseAndValidate(responseText, strategyGenerateSchema, {
+      task: "strategy.generate",
+      schemaVersion: "strategy.generate.v1",
+    })
+
+    const strategy: MarketingStrategyOutput = {
+      platforms: parsed.platforms.map((p) => ({
+        platform: p.platform,
+        priority: (p.priority as PlatformRecommendation["priority"]) || "secondary",
+        reasoning: p.reasoning,
+      })),
+      contentTypes: parsed.contentTypes,
+      tone: parsed.tone,
+      visualStyle: parsed.visualStyle
+        ? { style: parsed.visualStyle.style, examples: parsed.visualStyle.examples ?? [] }
+        : undefined,
+      cadence: {
+        frequency: parsed.cadence.frequency,
+        postsPerWeek: parsed.cadence.postsPerWeek ?? 2,
+        reasoning: parsed.cadence.reasoning ?? "",
+      },
+      proofTypes: parsed.proofTypes,
+      antiPatterns: parsed.antiPatterns,
+      summary: parsed.summary,
+      reasoning: parsed.reasoning,
+      confidence: parsed.confidence ?? 0.8,
     }
 
-    const strategy = JSON.parse(jsonMatch[0]) as MarketingStrategyOutput
-    
     // Ensure summary starts with the magic phrase
     if (!strategy.summary.toLowerCase().startsWith("because you are building")) {
       strategy.summary = `Because you are building ${product.name}, ${strategy.summary}`
     }
-    
+
     return strategy
   } catch (error) {
     console.error("Strategy generation error:", error)

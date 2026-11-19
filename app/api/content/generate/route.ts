@@ -1,12 +1,18 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
 import { ensureUserForClerkId } from "@/lib/users"
-import { checkRateLimit } from "@/lib/rate-limit"
+import { checkAiRateLimits } from "@/lib/rate-limit"
 import { parseBody, contentGenerateSchema } from "@/lib/validation"
 import { ProductContext, StrategyContext } from "@/lib/claude"
 import type { AudienceSegment, ContentIntent, Persona } from "@/lib/content-intelligence"
 import { runContentEngine } from "@/lib/content-engine"
 import { evaluateContent } from "@/lib/content-evaluation"
+import {
+  assembleBrandContext,
+  toLegacyProductContext,
+  toLegacyStrategyContext,
+} from "@/lib/brand-context/assembler"
+import { shouldRunAiReview } from "@/lib/ai/quality"
 import { NextResponse } from "next/server"
 
 export async function POST(req: Request) {
@@ -16,7 +22,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const rateLimit = checkRateLimit(userId)
+    const user = await ensureUserForClerkId(userId)
+    const rateLimit = await checkAiRateLimits(user.id)
     if (rateLimit) return rateLimit
 
     const raw = await req.json().catch(() => null)
@@ -24,6 +31,7 @@ export async function POST(req: Request) {
     if ("error" in parsed) return parsed.error
     const {
       insightId,
+      ideaId,
       type: typeOverride,
       platform: platformOverride,
       productId,
@@ -34,93 +42,123 @@ export async function POST(req: Request) {
       context,
     } = parsed.data
 
-    const user = await ensureUserForClerkId(userId)
+    const insight = insightId
+      ? await db.insight.findFirst({
+          where: { id: insightId, userId: user.id },
+        })
+      : null
 
-    // Fetch insight
-    const insight = await db.insight.findFirst({
-      where: {
-        id: insightId,
-        userId: user.id,
-      },
-    })
-
-    if (!insight) {
+    if (insightId && !insight) {
       return NextResponse.json({ error: "Insight not found" }, { status: 404 })
     }
 
-    // Get product context and strategy
-    // Use provided productId, or insight's productId, or user's active product
-    const targetProductId = productId || insight.productId || user.activeProductId
-    
+    const idea = ideaId
+      ? await db.contentIdea.findFirst({
+          where: { id: ideaId, userId: user.id },
+        })
+      : null
+
+    if (ideaId && !idea) {
+      return NextResponse.json({ error: "Idea not found" }, { status: 404 })
+    }
+
+    if (idea && productId && idea.productId !== productId) {
+      return NextResponse.json(
+        { error: "Idea does not belong to the specified product" },
+        { status: 400 }
+      )
+    }
+
+    const targetProductId =
+      productId || idea?.productId || insight?.productId || user.activeProductId
+
+    if (idea && targetProductId && idea.productId !== targetProductId) {
+      return NextResponse.json(
+        { error: "Idea/product mismatch" },
+        { status: 400 }
+      )
+    }
+
     let productContext: ProductContext | undefined
     let strategyContext: StrategyContext | undefined
-
-    let product: { audience: string; type: string; name?: string; strategy: { platforms: string } | null } | null = null
+    let product: {
+      audience: string
+      type: string
+      name?: string
+      strategy: { platforms: string } | null
+    } | null = null
+    let brandVoice: string | undefined
+    let founderBio: string | null = user.founderBio ?? null
+    let techStack: string | null = null
 
     if (targetProductId) {
-      const productRow = await db.product.findFirst({
-        where: { id: targetProductId, userId: user.id },
-        include: { strategy: true },
-      })
-
-      if (productRow) {
-        product = productRow
-        productContext = {
-          name: productRow.name,
-          type: productRow.type,
-          industry: productRow.industry,
-          audience: productRow.audience,
-          stage: productRow.stage,
-          description: productRow.description || undefined,
-          audienceDetail: productRow.audienceDetail ?? undefined,
+      try {
+        const brandCtx = await assembleBrandContext({
+          userId: user.id,
+          productId: targetProductId,
+          task: "content.generate",
+          brief: context,
+        })
+        productContext = toLegacyProductContext(brandCtx)
+        strategyContext = toLegacyStrategyContext(brandCtx) ?? undefined
+        product = {
+          audience: brandCtx.identity.audience,
+          type: brandCtx.identity.type,
+          name: brandCtx.identity.name,
+          strategy: brandCtx.strategy
+            ? { platforms: JSON.stringify(brandCtx.strategy.platforms ?? []) }
+            : null,
         }
-
-        if (productRow.strategy) {
-          try {
-            strategyContext = {
-              tone: JSON.parse(productRow.strategy.tone),
-              platforms: JSON.parse(productRow.strategy.platforms),
-              proofTypes: JSON.parse(productRow.strategy.proofTypes),
-              cadence: JSON.parse(productRow.strategy.cadence),
-              antiPatterns: JSON.parse(productRow.strategy.antiPatterns),
+        brandVoice =
+          brandCtx.approved.voice?.tone ||
+          (() => {
+            try {
+              return user.brandVoice ? JSON.parse(user.brandVoice).tone : undefined
+            } catch {
+              return undefined
             }
-          } catch (e) {
-            console.error("Error parsing strategy:", e)
-          }
-        }
+          })()
+        founderBio = brandCtx.untrusted.founderBio ?? founderBio
+        techStack = brandCtx.untrusted.techStack ?? null
+      } catch (e) {
+        console.error("Brand context assemble failed:", e)
       }
     }
 
-    const bv = (user as { brandVoice?: string | null }).brandVoice
-    let brandVoice: string | undefined
-    try {
-      brandVoice = bv ? JSON.parse(bv).tone : undefined
-    } catch {
-      brandVoice = undefined
-    }
-    const userTier = (user.tier === "premium" ? "premium" : "standard") as "standard" | "premium"
-    const founderBio = user.founderBio ?? null
-    let techStack: string | null = null
-    const productWithTech = product as { techStackJson?: string | null } | null
-    if (productWithTech?.techStackJson) {
+    if (!brandVoice && user.brandVoice) {
       try {
-        const arr = JSON.parse(productWithTech.techStackJson) as { name: string; version?: string; note?: string }[]
-        techStack = arr.map((t) => [t.name, t.version, t.note].filter(Boolean).join(" — ")).join("; ")
-      } catch {}
+        brandVoice = JSON.parse(user.brandVoice).tone
+      } catch {
+        brandVoice = undefined
+      }
     }
+    const userTier = (user.tier === "premium" ? "premium" : "standard") as
+      | "standard"
+      | "premium"
 
     const intentForDecision = (intent as ContentIntent) || "product_trust"
 
-    const { contentData, decision, type, platform } = await runContentEngine({
-      context: {
-        insight: {
+    const insightPayload = insight
+      ? {
           coreProblem: insight.coreProblem,
           solution: insight.solution,
           audience: insight.audience,
           whyMatters: insight.whyMatters,
           impact: insight.impact,
           themes: insight.themes,
-        },
+        }
+      : {
+          coreProblem: idea?.objective || idea?.title || "Content idea",
+          solution: idea?.concept || context || "",
+          audience: idea?.audience || product?.audience || "audience",
+          whyMatters: idea?.explanation || reason || "Brand content",
+          impact: null,
+          themes: idea ? JSON.stringify([idea.platform, idea.format]) : null,
+        }
+
+    const { contentData, decision, type, platform } = await runContentEngine({
+      context: {
+        insight: insightPayload,
         product,
         productContext,
         strategyContext,
@@ -129,67 +167,86 @@ export async function POST(req: Request) {
         brandVoice,
         userTier,
       },
-      typeOverride,
-      platformOverride,
+      typeOverride: typeOverride || idea?.format,
+      platformOverride: platformOverride || idea?.platform,
       intent: intentForDecision,
       audienceSegment: audienceSegmentOverride as AudienceSegment | undefined,
       persona: personaOverride as Persona | undefined,
-      reason,
-      contextExtra: context,
+      reason: reason || idea?.objective,
+      contextExtra: context || idea?.concept,
     })
 
-    // Save draft with product link, intent/reason/context, and content intelligence fields
     const draft = await db.contentDraft.create({
       data: {
         userId: user.id,
         productId: targetProductId || null,
-        insightId: insight.id,
+        insightId: insight?.id ?? null,
+        contentIdeaId: idea?.id ?? null,
         type,
         platform: platform || null,
-        title: contentData.title || null,
+        title: contentData.title || idea?.title || null,
         content: contentData.content,
         visualPrompt: null,
         cta: contentData.cta || null,
         status: "draft",
         intent: intentForDecision,
-        generationReason: reason || null,
-        audienceContext: context || null,
+        generationReason: reason || idea?.objective || null,
+        audienceContext: context || idea?.audience || null,
         whyThisContent: contentData.whyThisContent || null,
         audienceSegment: decision.audienceSegment,
         persona: decision.persona,
         suggestedFormat: decision.suggestedFormat,
         suggestedPlatform: decision.suggestedPlatform,
+        generationMetaJson: idea
+          ? JSON.stringify({ source: "content.generate", ideaId: idea.id })
+          : insight
+            ? JSON.stringify({ source: "content.generate", insightId: insight.id })
+            : null,
       },
     })
 
-    // Evaluation layer: rate draft for platform and goal fit
-    let evaluationScore: number | null = null
-    let evaluationNote: string | null = null
-    try {
-      const evaluation = await evaluateContent(
-        contentData.content,
-        platform || "linkedin",
-        intentForDecision,
-        reason ?? context ?? undefined
-      )
-      evaluationScore = evaluation.score
-      evaluationNote = evaluation.note || null
-      await db.contentDraft.update({
-        where: { id: draft.id },
-        data: { evaluationScore, evaluationNote },
+    if (idea && idea.status !== "converted") {
+      await db.contentIdea.updateMany({
+        where: { id: idea.id, userId: user.id, productId: idea.productId },
+        data: { status: "converted" },
       })
-    } catch (e) {
-      console.error("Content evaluation failed:", e)
     }
 
-    // Check if platform is recommended
+    let evaluationScore: number | null = null
+    let evaluationNote: string | null = null
+    const shouldAiReview = shouldRunAiReview({
+      qualityPolicy: "deterministic_then_optional_review",
+      contentType: type,
+    })
+    if (shouldAiReview) {
+      try {
+        const evaluation = await evaluateContent(
+          contentData.content,
+          platform || "linkedin",
+          intentForDecision,
+          reason ?? context ?? undefined
+        )
+        evaluationScore = evaluation.score
+        evaluationNote = evaluation.note || null
+        await db.contentDraft.update({
+          where: { id: draft.id },
+          data: { evaluationScore, evaluationNote },
+        })
+      } catch (e) {
+        console.error("Content evaluation failed:", e)
+      }
+    }
+
     let platformWarning: string | null = null
     if (platform && strategyContext?.platforms) {
       const platformRec = strategyContext.platforms.find(
-        p => p.platform.toLowerCase() === platform.toLowerCase()
+        (p) => p.platform.toLowerCase() === platform.toLowerCase()
       )
       if (platformRec?.priority === "avoid") {
-        platformWarning = `Note: ${platform} is not recommended for this product. Consider ${strategyContext.platforms.filter(p => p.priority === "primary").map(p => p.platform).join(" or ")} instead.`
+        platformWarning = `Note: ${platform} is not recommended for this product. Consider ${strategyContext.platforms
+          .filter((p) => p.priority === "primary")
+          .map((p) => p.platform)
+          .join(" or ")} instead.`
       }
     }
 

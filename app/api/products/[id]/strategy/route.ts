@@ -10,7 +10,9 @@ import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/db"
 import { ensureUserForClerkId } from "@/lib/users"
+import { checkAiRateLimits } from "@/lib/rate-limit"
 import { generateMarketingStrategy, formatStrategyForDisplay, type ProductType, type ProductStage, type SalesMotion } from "@/lib/strategy"
+import { assembleBrandContext } from "@/lib/brand-context/assembler"
 
 // GET /api/products/[id]/strategy - Get formatted strategy for display
 export async function GET(
@@ -88,6 +90,8 @@ export async function POST(
     const { id } = await params
 
     const user = await ensureUserForClerkId(clerkId)
+    const rateLimit = await checkAiRateLimits(user.id)
+    if (rateLimit) return rateLimit
 
     const product = await prisma.product.findFirst({
       where: { id, userId: user.id },
@@ -95,6 +99,19 @@ export async function POST(
 
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
+    }
+
+    // Prefer approved brand summary when present; raw description stays untrusted at prompt layer
+    let description = product.description || undefined
+    try {
+      const brandCtx = await assembleBrandContext({
+        userId: user.id,
+        productId: product.id,
+        task: "strategy.generate",
+      })
+      description = brandCtx.approved.summary || brandCtx.untrusted.description
+    } catch (e) {
+      console.error("Brand context assemble failed:", e)
     }
 
     // Generate new strategy
@@ -106,7 +123,7 @@ export async function POST(
       audienceDetail: product.audienceDetail ?? undefined,
       stage: product.stage as ProductStage,
       salesMotion: product.salesMotion as SalesMotion,
-      description: product.description || undefined,
+      description,
       website: product.website || undefined,
       competitors: product.competitors || undefined,
     }, user.tier)

@@ -120,14 +120,11 @@ export default function SettingsPage() {
 
   const settingsMutation = useMutation({
     mutationFn: updateSettings,
-    onSuccess: (data, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["settings"] })
-      const message = variables.tier
-        ? `Your tier has been updated to ${variables.tier}.`
-        : "Your brand voice has been updated."
       toast({
         title: "Settings saved",
-        description: message,
+        description: "Your brand voice has been updated.",
         variant: "success",
       })
     },
@@ -223,11 +220,6 @@ export default function SettingsPage() {
     })
   }
 
-  const handleUpdateTier = (tier: "standard" | "premium") => {
-    setUserTier(tier)
-    settingsMutation.mutate({ tier })
-  }
-
   const handleConnectGitHub = (e: React.FormEvent) => {
     e.preventDefault()
     githubMutation.mutate({
@@ -281,18 +273,17 @@ export default function SettingsPage() {
             Subscription Tier
           </CardTitle>
           <CardDescription>
-            Choose your tier. Premium tier uses Claude Opus 4.5 for maximum quality content generation.
+            Your plan is managed by the account administrator. Contact support to change tiers.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div
-              className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+              className={`p-4 border-2 rounded-lg ${
                 userTier === "standard"
                   ? "border-primary bg-primary/5"
-                  : "border-gray-200 hover:border-gray-300"
+                  : "border-gray-200 opacity-60"
               }`}
-              onClick={() => handleUpdateTier("standard")}
             >
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold">Standard</h3>
@@ -301,21 +292,19 @@ export default function SettingsPage() {
                 )}
               </div>
               <p className="text-sm text-muted-foreground mb-3">
-                Uses Claude Sonnet 4.5
+                Uses Claude Sonnet for most generation
               </p>
               <ul className="text-xs text-muted-foreground space-y-1">
                 <li>• High-quality content generation</li>
-                <li>• Blog posts use Opus 4.5</li>
                 <li>• Cost-effective for most use cases</li>
               </ul>
             </div>
             <div
-              className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+              className={`p-4 border-2 rounded-lg ${
                 userTier === "premium"
                   ? "border-primary bg-primary/5"
-                  : "border-gray-200 hover:border-gray-300"
+                  : "border-gray-200 opacity-60"
               }`}
-              onClick={() => handleUpdateTier("premium")}
             >
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold flex items-center gap-2">
@@ -327,12 +316,11 @@ export default function SettingsPage() {
                 )}
               </div>
               <p className="text-sm text-muted-foreground mb-3">
-                Uses Claude Opus 4.5
+                Uses higher-capacity models for generation
               </p>
               <ul className="text-xs text-muted-foreground space-y-1">
                 <li>• Maximum quality content</li>
-                <li>• Best for validation & testing</li>
-                <li>• All content types use Opus</li>
+                <li>• Assigned by administrator</li>
               </ul>
             </div>
           </div>
@@ -340,7 +328,7 @@ export default function SettingsPage() {
             <div className="mt-4 p-3 bg-primary/10 border border-primary/20 rounded-md">
               <p className="text-sm text-primary flex items-center gap-2">
                 <Sparkles className="h-4 w-4" />
-                You're on Premium tier. All content will use Claude Opus 4.5 for maximum quality.
+                You&apos;re on Premium tier.
               </p>
             </div>
           )}

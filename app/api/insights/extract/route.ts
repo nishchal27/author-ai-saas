@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
 import { ensureUserForClerkId } from "@/lib/users"
-import { checkRateLimit } from "@/lib/rate-limit"
+import { checkAiRateLimits } from "@/lib/rate-limit"
 import { parseBody, insightExtractSchema } from "@/lib/validation"
 import { extractInsight, ProductContext } from "@/lib/claude"
 import { NextResponse } from "next/server"
@@ -13,15 +13,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const rateLimit = checkRateLimit(userId)
+    const user = await ensureUserForClerkId(userId)
+    const rateLimit = await checkAiRateLimits(user.id)
     if (rateLimit) return rateLimit
 
     const raw = await req.json().catch(() => null)
     const parsed = parseBody(raw, insightExtractSchema)
     if ("error" in parsed) return parsed.error
     const { activityId, humanInput, productId } = parsed.data
-
-    const user = await ensureUserForClerkId(userId)
 
     // Fetch activity
     const activity = await db.activity.findFirst({

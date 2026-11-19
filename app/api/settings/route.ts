@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
 import { apiError } from "@/lib/api-error"
 import { ensureUserForClerkId } from "@/lib/users"
+import { parseBody, settingsPatchSchema } from "@/lib/validation"
 import { NextResponse } from "next/server"
 
 export async function GET() {
@@ -28,16 +29,17 @@ export async function PATCH(req: Request) {
 
     const user = await ensureUserForClerkId(userId)
 
-    const body = await req.json()
-    const { brandVoice, brandColors, visualStyle, tier, founderBio } = body
+    const raw = await req.json().catch(() => null)
+    const parsed = parseBody(raw, settingsPatchSchema)
+    if ("error" in parsed) return parsed.error
+
+    // Subscription tier is server-controlled only (scripts/billing). Never accept from client.
+    const { brandVoice, founderBio } = parsed.data
 
     const updated = await db.user.update({
       where: { id: user.id },
       data: {
         ...(brandVoice !== undefined ? { brandVoice } : {}),
-        ...(brandColors !== undefined ? { brandColors } : {}),
-        ...(visualStyle !== undefined ? { visualStyle } : {}),
-        ...(tier !== undefined ? { tier } : {}),
         ...(founderBio !== undefined ? { founderBio } : {}),
       },
     })
