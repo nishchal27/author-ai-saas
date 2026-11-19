@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { extractJsonObject, parseAndValidate } from "@/lib/ai/parse"
-import { runDeterministicChecks } from "@/lib/ai/quality"
+import { runDeterministicChecks, shouldRunAiReview } from "@/lib/ai/quality"
 import { contentReviewSchema } from "@/lib/ai/schemas/review"
 import { AiOrchestrationError } from "@/lib/ai/types"
 
@@ -55,5 +55,14 @@ describe("deterministic quality checks", () => {
       platform: "linkedin",
     })
     expect(result.passed).toBe(true)
+  })
+
+  it("exposes selective AI review helper", () => {
+    expect(
+      shouldRunAiReview({
+        qualityPolicy: "deterministic_then_optional_review",
+        contentType: "blog",
+      })
+    ).toBe(true)
   })
 })

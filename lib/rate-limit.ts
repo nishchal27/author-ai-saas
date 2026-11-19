@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { countDistinctRequests, startOfUtcDay } from "@/lib/usage/meter"
 
 /**
- * Short-window rate limiter + durable daily soft cap.
+ * Short-window rate limiter + durable daily soft cap via AiUsageEvent.
  *
  * - In-memory window is per Node process (not shared across serverless instances).
- * - Daily cap uses Prisma counts so it survives restarts and is safer for cost abuse.
- * Full UsageMeter remains a later architecture item; this is the Phase 0 shield.
+ * - Daily cap counts distinct AI requestIds (user tasks), not retry attempts.
  */
 
 const windowMs = 60 * 1000
 const maxPerWindow = 20
-const dailyAiCap = 100
+export const DAILY_AI_REQUEST_CAP = 100
 
 const hits = new Map<string, number[]>()
 const cleanupInterval = 5 * 60 * 1000
@@ -34,14 +34,9 @@ function cleanup() {
   for (const key of hits.keys()) prune(key, now)
 }
 
-function startOfUtcDay(d = new Date()): Date {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
-}
-
 /**
  * Check short-window rate limit for a user.
  * Returns null if allowed, or a 429 NextResponse if over limit.
- * Prefer the internal app user.id (not Clerk id) for consistency with DB.
  */
 export function checkRateLimit(userId: string): NextResponse | null {
   if (process.env.NODE_ENV === "production" && !warnedMultiInstance) {
@@ -67,21 +62,35 @@ export function checkRateLimit(userId: string): NextResponse | null {
 }
 
 /**
- * Durable soft daily cap for AI-generating actions (drafts + insights created today UTC).
- * Returns null if allowed, or 429 if over cap.
+ * Durable soft daily cap for AI user-tasks.
+ * Prefer AiUsageEvent distinct requestIds; fall back to draft+insight counts
+ * so pre-Phase-3 traffic still contributes until usage events dominate.
  */
 export async function checkDailyAiCap(userId: string): Promise<NextResponse | null> {
   const since = startOfUtcDay()
-  const [drafts, insights] = await Promise.all([
-    db.contentDraft.count({ where: { userId, createdAt: { gte: since } } }),
-    db.insight.count({ where: { userId, createdAt: { gte: since } } }),
-  ])
-  if (drafts + insights >= dailyAiCap) {
+  const usageRequests = await countDistinctRequests(userId, since)
+
+  if (usageRequests >= DAILY_AI_REQUEST_CAP) {
     return NextResponse.json(
       { error: "Daily AI usage limit reached. Try again tomorrow." },
       { status: 429 }
     )
   }
+
+  // Compatibility soft floor while older activity may lack usage events
+  if (usageRequests === 0) {
+    const [drafts, insights] = await Promise.all([
+      db.contentDraft.count({ where: { userId, createdAt: { gte: since } } }),
+      db.insight.count({ where: { userId, createdAt: { gte: since } } }),
+    ])
+    if (drafts + insights >= DAILY_AI_REQUEST_CAP) {
+      return NextResponse.json(
+        { error: "Daily AI usage limit reached. Try again tomorrow." },
+        { status: 429 }
+      )
+    }
+  }
+
   return null
 }
 

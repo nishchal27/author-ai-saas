@@ -34,18 +34,23 @@ export const insightCreateSchema = z.object({
   productId: z.string().cuid().optional().nullable(),
 })
 
-/** Content generate */
-export const contentGenerateSchema = z.object({
-  insightId: z.string().cuid(),
-  type: z.string().max(50).optional(),
-  platform: z.string().max(50).optional(),
-  productId: z.string().cuid().optional().nullable(),
-  intent: z.string().max(100).optional(),
-  audienceSegment: z.string().max(100).optional(),
-  persona: z.string().max(100).optional(),
-  reason: z.string().max(500).optional(),
-  context: z.string().max(2000).optional(),
-})
+/** Content generate — Insight (legacy) and/or ContentIdea (V2) */
+export const contentGenerateSchema = z
+  .object({
+    insightId: z.string().cuid().optional(),
+    ideaId: z.string().cuid().optional(),
+    type: z.string().max(50).optional(),
+    platform: z.string().max(50).optional(),
+    productId: z.string().cuid().optional().nullable(),
+    intent: z.string().max(100).optional(),
+    audienceSegment: z.string().max(100).optional(),
+    persona: z.string().max(100).optional(),
+    reason: z.string().max(500).optional(),
+    context: z.string().max(2000).optional(),
+  })
+  .refine((v) => Boolean(v.insightId || v.ideaId), {
+    message: "insightId or ideaId is required",
+  })
 
 /** Content regenerate */
 export const contentRegenerateSchema = z.object({
@@ -159,6 +164,110 @@ export const draftPatchSchema = z
     status: z
       .enum(["draft", "approved", "scheduled", "published", "rejected"])
       .optional(),
+  })
+  .strict()
+
+/** Approve brand summary/facts (user-controlled) */
+export const brandApproveSchema = z
+  .object({
+    summary: z.string().min(1).max(5000),
+    facts: z
+      .array(
+        z.object({
+          id: z.string().min(1).max(80),
+          text: z.string().min(1).max(500),
+          category: z.string().max(100).optional(),
+          source: z.enum(["user", "ai_proposed", "ai_approved"]).optional(),
+        })
+      )
+      .max(40),
+    voice: z
+      .object({
+        tone: z.string().min(1).max(500),
+        examples: z.array(z.string().max(300)).max(8).optional(),
+        personality: z.string().max(500).optional(),
+      })
+      .optional(),
+  })
+  .strict()
+
+/** Update a suggestion status */
+export const brandSuggestionStatusSchema = z
+  .object({
+    suggestionId: z.string().min(1).max(80),
+    status: z.enum(["pending", "accepted", "rejected", "edited"]),
+    editedText: z.string().max(800).optional(),
+  })
+  .strict()
+
+/** Content pillar create/update */
+export const pillarCreateSchema = z
+  .object({
+    name: z.string().min(1).max(120),
+    description: z.string().min(1).max(1000),
+    purpose: z.string().max(1000).optional(),
+  })
+  .strict()
+
+export const pillarPatchSchema = z
+  .object({
+    name: z.string().min(1).max(120).optional(),
+    description: z.string().min(1).max(1000).optional(),
+    purpose: z.string().max(1000).nullable().optional(),
+    isActive: z.boolean().optional(),
+    sortOrder: z.number().int().min(0).max(100).optional(),
+    approvalStatus: z.enum(["proposed", "approved", "rejected"]).optional(),
+  })
+  .strict()
+
+export const pillarReorderSchema = z
+  .object({
+    orderedIds: z.array(z.string().cuid()).min(1).max(20),
+  })
+  .strict()
+
+/** Content idea create/update */
+export const ideaCreateSchema = z
+  .object({
+    title: z.string().min(1).max(200),
+    concept: z.string().min(1).max(2000),
+    platform: z.string().min(1).max(50),
+    audience: z.string().min(1).max(300),
+    objective: z.string().min(1).max(300),
+    format: z.string().min(1).max(80),
+    explanation: z.string().max(1000).optional(),
+    contentPillarId: z.string().cuid().optional().nullable(),
+  })
+  .strict()
+
+export const ideaPatchSchema = z
+  .object({
+    title: z.string().min(1).max(200).optional(),
+    concept: z.string().min(1).max(2000).optional(),
+    platform: z.string().min(1).max(50).optional(),
+    audience: z.string().min(1).max(300).optional(),
+    objective: z.string().min(1).max(300).optional(),
+    format: z.string().min(1).max(80).optional(),
+    explanation: z.string().max(1000).nullable().optional(),
+    contentPillarId: z.string().cuid().nullable().optional(),
+    status: z.enum(["proposed", "saved", "rejected", "converted"]).optional(),
+  })
+  .strict()
+
+/** Weekly planner */
+export const planItemCreateSchema = z
+  .object({
+    contentIdeaId: z.string().cuid().optional(),
+    contentDraftId: z.string().cuid().optional(),
+    status: z.enum(["planned", "in_progress", "completed"]).optional(),
+  })
+  .refine((v) => Boolean(v.contentIdeaId || v.contentDraftId), {
+    message: "contentIdeaId or contentDraftId is required",
+  })
+
+export const planItemPatchSchema = z
+  .object({
+    status: z.enum(["planned", "in_progress", "completed"]),
   })
   .strict()
 

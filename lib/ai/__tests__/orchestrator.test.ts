@@ -73,9 +73,9 @@ describe("orchestrator with mocked providers", () => {
       })
 
     const result = await executeAi({
-      task: "suggestions.generate",
+      task: "content.regenerate",
       messages: [
-        { role: "system", content: "Suggest" },
+        { role: "system", content: "Rewrite" },
         { role: "user", content: "Next step" },
       ],
     })

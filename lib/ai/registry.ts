@@ -7,6 +7,14 @@ import {
   STRATEGY_GENERATE_SCHEMA_VERSION,
   strategyGenerateSchema,
 } from "@/lib/ai/schemas/strategy"
+import {
+  brandSummarizeSchema,
+  BRAND_SUMMARIZE_SCHEMA_VERSION,
+  ideasGenerateSchema,
+  IDEAS_GENERATE_SCHEMA_VERSION,
+  suggestionsGenerateSchema,
+  SUGGESTIONS_GENERATE_SCHEMA_VERSION,
+} from "@/lib/ai/schemas/brand"
 import type { AiTaskId, TaskDefinition } from "@/lib/ai/types"
 import { AiOrchestrationError } from "@/lib/ai/types"
 
@@ -76,6 +84,8 @@ function buildRegistry(): Record<AiTaskId, TaskDefinition> {
       usageCategory: "brand",
       qualityPolicy: "deterministic_only",
       promptVersion: "brand.summarize.v1",
+      schemaVersion: BRAND_SUMMARIZE_SCHEMA_VERSION,
+      outputSchema: brandSummarizeSchema,
       allowJsonRepair: true,
     },
     "strategy.generate": {
@@ -104,6 +114,8 @@ function buildRegistry(): Record<AiTaskId, TaskDefinition> {
       usageCategory: "ideas",
       qualityPolicy: "deterministic_only",
       promptVersion: "ideas.generate.v1",
+      schemaVersion: IDEAS_GENERATE_SCHEMA_VERSION,
+      outputSchema: ideasGenerateSchema,
       allowJsonRepair: true,
     },
     "content.generate": {
@@ -173,14 +185,17 @@ function buildRegistry(): Record<AiTaskId, TaskDefinition> {
     "suggestions.generate": {
       ...base,
       id: "suggestions.generate",
-      description: "Lightweight next-action / copy suggestions",
+      description: "Brand profile and strategy improvement suggestions",
       model: models.fast,
-      maxOutputTokens: 800,
+      maxOutputTokens: 1600,
       timeoutMs: 30_000,
       temperature: 0.4,
       usageCategory: "suggestions",
       qualityPolicy: "deterministic_only",
       promptVersion: "suggestions.generate.v1",
+      schemaVersion: SUGGESTIONS_GENERATE_SCHEMA_VERSION,
+      outputSchema: suggestionsGenerateSchema,
+      allowJsonRepair: true,
     },
     "insight.extract": {
       ...base,

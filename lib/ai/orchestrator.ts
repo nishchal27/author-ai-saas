@@ -1,6 +1,6 @@
 import { parseAndValidate } from "@/lib/ai/parse"
 import { requireConfiguredProvider } from "@/lib/ai/providers"
-import { runDeterministicChecks } from "@/lib/ai/quality"
+import { runDeterministicChecks, shouldRunAiReview } from "@/lib/ai/quality"
 import { getTaskDefinition } from "@/lib/ai/registry"
 import type {
   AiNormalizedResult,
@@ -10,6 +10,11 @@ import type {
   TaskDefinition,
 } from "@/lib/ai/types"
 import { AiOrchestrationError, AiProviderError } from "@/lib/ai/types"
+import {
+  newAiRequestId,
+  recordUsageAttempt,
+  type UsageAttemptKind,
+} from "@/lib/usage/meter"
 
 function logAiEvent(event: Record<string, unknown>) {
   // Structured, no prompts/secrets
@@ -22,18 +27,37 @@ function logAiEvent(event: Record<string, unknown>) {
   )
 }
 
+type AttemptContext = {
+  requestId: string
+  userId?: string
+  productId?: string | null
+  taskId: string
+}
+
 async function runOnce(
   def: TaskDefinition,
   provider: AiProviderId,
   model: string,
-  req: ExecuteAiRequest
+  req: ExecuteAiRequest,
+  ctx: AttemptContext,
+  baseKind: "primary" | "fallback" | "repair" | "review_nested",
+  attemptOffset = 0
 ): Promise<AiNormalizedResult> {
   const adapter = requireConfiguredProvider(provider)
   let lastError: unknown
 
   for (let attempt = 0; attempt <= def.maxRetries; attempt++) {
+    const attemptKind: UsageAttemptKind =
+      attempt === 0
+        ? baseKind
+        : baseKind === "primary" || baseKind === "fallback"
+          ? "retry"
+          : baseKind
+    const attemptIndex = attemptOffset + attempt
+    const started = Date.now()
+
     try {
-      return await adapter.generateText({
+      const result = await adapter.generateText({
         messages: req.messages,
         model,
         maxOutputTokens: def.maxOutputTokens,
@@ -42,8 +66,42 @@ async function runOnce(
         signal: req.signal,
         jsonMode: req.jsonMode ?? Boolean(def.outputSchema),
       })
+
+      if (ctx.userId) {
+        await recordUsageAttempt({
+          userId: ctx.userId,
+          productId: ctx.productId,
+          requestId: ctx.requestId,
+          taskId: ctx.taskId,
+          provider: result.provider,
+          model: result.model,
+          attemptKind,
+          attemptIndex,
+          status: "success",
+          usage: result.usage,
+          latencyMs: result.latencyMs ?? Date.now() - started,
+        })
+      }
+
+      return result
     } catch (err) {
       lastError = err
+      if (ctx.userId) {
+        await recordUsageAttempt({
+          userId: ctx.userId,
+          productId: ctx.productId,
+          requestId: ctx.requestId,
+          taskId: ctx.taskId,
+          provider,
+          model,
+          attemptKind,
+          attemptIndex,
+          status:
+            err instanceof AiProviderError ? "provider_error" : "failed",
+          latencyMs: Date.now() - started,
+        })
+      }
+
       const retryable = err instanceof AiProviderError && err.retryable
       if (!retryable || attempt >= def.maxRetries) break
       logAiEvent({
@@ -52,6 +110,7 @@ async function runOnce(
         provider,
         model,
         attempt: attempt + 1,
+        requestId: ctx.requestId,
         code: err instanceof AiProviderError ? err.code : "provider_error",
       })
     }
@@ -69,7 +128,9 @@ async function runOnce(
 async function maybeParseStructured<T>(
   def: TaskDefinition,
   text: string,
-  req: ExecuteAiRequest
+  req: ExecuteAiRequest,
+  ctx: AttemptContext,
+  successfulResult: AiNormalizedResult
 ): Promise<{ text: string; data?: T }> {
   if (!def.outputSchema) {
     return { text }
@@ -82,27 +143,50 @@ async function maybeParseStructured<T>(
     })
     return { text, data }
   } catch (err) {
-    if (!def.allowJsonRepair) throw err
+    if (!def.allowJsonRepair) {
+      if (ctx.userId) {
+        await recordUsageAttempt({
+          userId: ctx.userId,
+          productId: ctx.productId,
+          requestId: ctx.requestId,
+          taskId: def.id,
+          provider: successfulResult.provider,
+          model: successfulResult.model,
+          attemptKind: "primary",
+          attemptIndex: 900,
+          status: "validation_fail",
+        })
+      }
+      throw err
+    }
 
-    // One bounded repair: ask the same task config again with a repair instruction.
     logAiEvent({
       event: "json_repair",
       task: def.id,
       schemaVersion: def.schemaVersion,
+      requestId: ctx.requestId,
     })
 
-    const repair = await runOnce(def, def.provider, def.model, {
-      ...req,
-      messages: [
-        ...req.messages,
-        {
-          role: "user",
-          content:
-            "Your previous response was not valid against the required JSON schema. Reply with valid JSON only, no markdown.",
-        },
-      ],
-      jsonMode: true,
-    })
+    const repair = await runOnce(
+      def,
+      def.provider,
+      def.model,
+      {
+        ...req,
+        messages: [
+          ...req.messages,
+          {
+            role: "user",
+            content:
+              "Your previous response was not valid against the required JSON schema. Reply with valid JSON only, no markdown.",
+          },
+        ],
+        jsonMode: true,
+      },
+      ctx,
+      "repair",
+      100
+    )
 
     const data = parseAndValidate<T>(repair.text, def.outputSchema, {
       task: def.id,
@@ -114,6 +198,12 @@ async function maybeParseStructured<T>(
 
 /**
  * Central AI entry point. Features request task IDs — not model IDs.
+ *
+ * Usage accounting:
+ * - One requestId per executeAi (user AI task)
+ * - Each provider attempt is a separate AiUsageEvent (idempotent)
+ * - Tokens/cost recorded only on successful attempts from provider metadata
+ * - Retries/fallback/repair do not rewrite the same attempt key
  */
 export async function executeAi<T = unknown>(
   req: ExecuteAiRequest
@@ -122,9 +212,16 @@ export async function executeAi<T = unknown>(
   const started = Date.now()
   let usedFallback = false
   let result: AiNormalizedResult
+  const requestId = newAiRequestId()
+  const ctx: AttemptContext = {
+    requestId,
+    userId: req.userId,
+    productId: req.brandId,
+    taskId: def.id,
+  }
 
   try {
-    result = await runOnce(def, def.provider, def.model, req)
+    result = await runOnce(def, def.provider, def.model, req, ctx, "primary", 0)
   } catch (primaryError) {
     if (!def.fallback) {
       logAiEvent({
@@ -132,6 +229,7 @@ export async function executeAi<T = unknown>(
         task: def.id,
         provider: def.provider,
         model: def.model,
+        requestId,
         code:
           primaryError instanceof AiProviderError
             ? primaryError.code
@@ -147,6 +245,7 @@ export async function executeAi<T = unknown>(
       fromProvider: def.provider,
       toProvider: def.fallback.provider,
       toModel: def.fallback.model,
+      requestId,
       code:
         primaryError instanceof AiProviderError
           ? primaryError.code
@@ -155,7 +254,15 @@ export async function executeAi<T = unknown>(
 
     usedFallback = true
     try {
-      result = await runOnce(def, def.fallback.provider, def.fallback.model, req)
+      result = await runOnce(
+        def,
+        def.fallback.provider,
+        def.fallback.model,
+        req,
+        ctx,
+        "fallback",
+        50
+      )
     } catch (fallbackError) {
       logAiEvent({
         event: "failure",
@@ -163,6 +270,7 @@ export async function executeAi<T = unknown>(
         provider: def.fallback.provider,
         model: def.fallback.model,
         usedFallback: true,
+        requestId,
         code:
           fallbackError instanceof AiProviderError
             ? fallbackError.code
@@ -173,10 +281,29 @@ export async function executeAi<T = unknown>(
     }
   }
 
-  const parsed = await maybeParseStructured<T>(def, result.text, req)
+  const parsed = await maybeParseStructured<T>(def, result.text, req, ctx, result)
 
-  const deterministic = runDeterministicChecks({ text: parsed.text })
+  const deterministic = runDeterministicChecks({
+    text: parsed.text,
+    platform: req.platform,
+    avoidPatterns: req.avoidPatterns,
+    brandName: req.brandName,
+    approvedFacts: req.approvedFacts,
+  })
   if (!deterministic.passed && def.qualityPolicy !== "review_task") {
+    if (ctx.userId) {
+      await recordUsageAttempt({
+        userId: ctx.userId,
+        productId: ctx.productId,
+        requestId: ctx.requestId,
+        taskId: def.id,
+        provider: result.provider,
+        model: result.model,
+        attemptKind: "primary",
+        attemptIndex: 950,
+        status: "quality_fail",
+      })
+    }
     throw new AiOrchestrationError({
       code: "quality_failed",
       message: deterministic.notes.join("; ") || "Deterministic quality checks failed",
@@ -187,34 +314,45 @@ export async function executeAi<T = unknown>(
 
   let aiReview: { score?: number; note?: string } | undefined
 
-  // content.review task itself returns structured review as data
   if (def.id === "content.review" && parsed.data) {
     const data = parsed.data as { score?: number; note?: string }
     aiReview = { score: data.score, note: data.note }
   } else if (
-    def.qualityPolicy === "deterministic_then_optional_review" &&
-    req.forceAiReview === true &&
-    !req.skipAiReview
+    shouldRunAiReview({
+      qualityPolicy: def.qualityPolicy,
+      forceAiReview: req.forceAiReview,
+      skipAiReview: req.skipAiReview,
+      contentType: req.contentType,
+    })
   ) {
-    // Optional nested review via the review task (explicit only)
     const reviewDef = getTaskDefinition("content.review")
     try {
-      const reviewResult = await runOnce(reviewDef, reviewDef.provider, reviewDef.model, {
-        task: "content.review",
-        messages: [
-          {
-            role: "system",
-            content:
-              'You are a content quality reviewer for Varabhi. Output valid JSON only: { "score": number between 0 and 1, "note": "One short sentence" }.',
-          },
-          {
-            role: "user",
-            content: `Draft content:\n---\n${parsed.text.slice(0, 2000)}\n---\nOutput JSON only.`,
-          },
-        ],
-        jsonMode: true,
-        signal: req.signal,
-      })
+      const reviewResult = await runOnce(
+        reviewDef,
+        reviewDef.provider,
+        reviewDef.model,
+        {
+          task: "content.review",
+          userId: req.userId,
+          brandId: req.brandId,
+          messages: [
+            {
+              role: "system",
+              content:
+                'You are a content quality reviewer for Varabhi. Output valid JSON only: { "score": number between 0 and 1, "note": "One short sentence" }.',
+            },
+            {
+              role: "user",
+              content: `Draft content:\n---\n${parsed.text.slice(0, 2000)}\n---\nOutput JSON only.`,
+            },
+          ],
+          jsonMode: true,
+          signal: req.signal,
+        },
+        { ...ctx, taskId: reviewDef.id },
+        "review_nested",
+        200
+      )
       if (reviewDef.outputSchema) {
         const reviewData = parseAndValidate<{ score: number; note: string }>(
           reviewResult.text,
@@ -224,7 +362,12 @@ export async function executeAi<T = unknown>(
         aiReview = reviewData
       }
     } catch {
-      logAiEvent({ event: "review_skipped", task: def.id, reason: "review_failed" })
+      logAiEvent({
+        event: "review_skipped",
+        task: def.id,
+        reason: "review_failed",
+        requestId,
+      })
     }
   }
 
@@ -240,6 +383,7 @@ export async function executeAi<T = unknown>(
     latencyMs: Date.now() - started,
     promptVersion: def.promptVersion,
     schemaVersion: def.schemaVersion,
+    requestId,
     userId: req.userId ? "[redacted]" : undefined,
     brandId: req.brandId ? "[redacted]" : undefined,
   })

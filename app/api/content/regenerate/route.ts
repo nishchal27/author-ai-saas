@@ -5,6 +5,11 @@ import { checkAiRateLimits } from "@/lib/rate-limit"
 import { parseBody, contentRegenerateSchema } from "@/lib/validation"
 import { generateContent, ProductContext, StrategyContext } from "@/lib/claude"
 import type { AudienceSegment, ContentIntent, Persona } from "@/lib/content-intelligence"
+import {
+  assembleBrandContext,
+  toLegacyProductContext,
+  toLegacyStrategyContext,
+} from "@/lib/brand-context/assembler"
 import { NextResponse } from "next/server"
 
 /**
@@ -31,63 +36,75 @@ export async function POST(req: Request) {
       where: { id: draftId, userId: user.id },
       include: {
         insight: true,
+        contentIdea: true,
         product: { include: { strategy: true } },
       },
     })
 
-    if (!draft || !draft.insight) {
-      return NextResponse.json(
-        { error: "Draft or linked insight not found" },
-        { status: 404 }
-      )
+    if (!draft) {
+      return NextResponse.json({ error: "Draft not found" }, { status: 404 })
     }
 
     const insight = draft.insight
+    const idea = draft.contentIdea
     const product = draft.product
+
+    if (!insight && !idea && !draft.content) {
+      return NextResponse.json(
+        { error: "Draft has no insight, idea, or content to regenerate from" },
+        { status: 400 }
+      )
+    }
 
     let productContext: ProductContext | undefined
     let strategyContext: StrategyContext | undefined
+    let brandVoice: string | undefined
 
     if (product) {
-      productContext = {
-        name: product.name,
-        type: product.type,
-        industry: product.industry,
-        audience: product.audience,
-        stage: product.stage,
-        description: product.description || undefined,
-        audienceDetail: product.audienceDetail ?? undefined,
-      }
-      if (product.strategy) {
-        try {
-          strategyContext = {
-            tone: JSON.parse(product.strategy.tone),
-            platforms: JSON.parse(product.strategy.platforms),
-            proofTypes: JSON.parse(product.strategy.proofTypes),
-            cadence: JSON.parse(product.strategy.cadence),
-            antiPatterns: JSON.parse(product.strategy.antiPatterns),
-          }
-        } catch (e) {
-          console.error("Error parsing strategy:", e)
-        }
+      try {
+        const brandCtx = await assembleBrandContext({
+          userId: user.id,
+          productId: product.id,
+          task: "content.regenerate",
+          brief: feedback?.trim() || draft.generationReason || undefined,
+        })
+        productContext = toLegacyProductContext(brandCtx)
+        strategyContext = toLegacyStrategyContext(brandCtx) ?? undefined
+        brandVoice = brandCtx.approved.voice?.tone
+      } catch (e) {
+        console.error("Brand context assemble failed:", e)
       }
     }
 
     const type = (draft.type as "post" | "blog" | "carousel" | "thread" | "caption") || "post"
     const platform = draft.platform as "linkedin" | "twitter" | "blog" | "facebook" | undefined
-    const bv = (user as { brandVoice?: string | null }).brandVoice
-    const brandVoice = bv ? JSON.parse(bv).tone : undefined
+    if (!brandVoice && user.brandVoice) {
+      try {
+        brandVoice = JSON.parse(user.brandVoice).tone
+      } catch {
+        brandVoice = undefined
+      }
+    }
     const userTier = (user.tier === "premium" ? "premium" : "standard") as "standard" | "premium"
 
     const contentData = await generateContent(
-      {
-        coreProblem: insight.coreProblem,
-        solution: insight.solution,
-        audience: insight.audience,
-        whyMatters: insight.whyMatters,
-        impact: insight.impact || undefined,
-        themes: insight.themes ? JSON.parse(insight.themes) : undefined,
-      },
+      insight
+        ? {
+            coreProblem: insight.coreProblem,
+            solution: insight.solution,
+            audience: insight.audience,
+            whyMatters: insight.whyMatters,
+            impact: insight.impact || undefined,
+            themes: insight.themes ? JSON.parse(insight.themes) : undefined,
+          }
+        : {
+            coreProblem: idea?.objective || draft.title || "Regenerate draft",
+            solution: idea?.concept || draft.content.slice(0, 1500),
+            audience: idea?.audience || "audience",
+            whyMatters: idea?.explanation || draft.generationReason || "Brand content",
+            impact: undefined,
+            themes: undefined,
+          },
       type,
       platform,
       brandVoice,

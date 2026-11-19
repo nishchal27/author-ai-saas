@@ -149,6 +149,16 @@ export type ExecuteAiRequest = {
   skipAiReview?: boolean
   /** Run AI review even if policy is deterministic_only (explicit request). */
   forceAiReview?: boolean
+  /** Optional platform for deterministic length / constraint checks */
+  platform?: string
+  /** Content type hint for selective AI review (e.g. blog) */
+  contentType?: string
+  /** Strategy avoid-patterns for soft QC */
+  avoidPatterns?: string[]
+  /** Brand name for consistency checks */
+  brandName?: string
+  /** Approved fact allow-list for unsupported-claim detection */
+  approvedFacts?: string[]
 }
 
 export type ExecuteAiResult<T = string> = {
