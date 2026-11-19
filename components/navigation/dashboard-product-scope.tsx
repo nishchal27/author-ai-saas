@@ -2,13 +2,17 @@
 
 import { ProductSwitcher } from "@/components/navigation/product-switcher"
 
-export function DashboardProductScope() {
+export function DashboardProductScope({
+  onAddProduct,
+}: {
+  onAddProduct?: () => void
+}) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+    <div className="hidden items-center gap-2 md:flex">
+      <span className="hidden text-sm font-medium text-muted-foreground whitespace-nowrap lg:inline">
         Working on:
       </span>
-      <ProductSwitcher compact={false} />
+      <ProductSwitcher compact={false} onAddProduct={onAddProduct} />
     </div>
   )
 }

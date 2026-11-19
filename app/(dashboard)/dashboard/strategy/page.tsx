@@ -7,6 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Package, ArrowLeft, Target } from "lucide-react"
 import Link from "next/link"
 import { StrategyDisplay } from "@/components/strategy/strategy-display"
+import { Badge } from "@/components/ui/badge"
+import { queryKeys } from "@/lib/query-keys"
 
 async function fetchProducts() {
   const res = await fetch("/api/products")
@@ -53,19 +55,19 @@ function NoProductState() {
 
 export default function StrategyPage() {
   const { data, isLoading } = useQuery({
-    queryKey: ["products"],
+    queryKey: queryKeys.products,
     queryFn: fetchProducts,
   })
 
   const products = data?.products || []
   const activeProductId = data?.activeProductId
-  const activeProduct = products.find((p: any) => p.id === activeProductId) || products[0]
+  const activeProduct = products.find((p: { id: string }) => p.id === activeProductId) || products[0]
 
   if (isLoading) {
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold">Strategy</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Marketing Intelligence</h1>
           <p className="text-muted-foreground mt-2">Loading your strategy...</p>
         </div>
         <StrategySkeleton />
@@ -95,21 +97,25 @@ export default function StrategyPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <Target className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Strategy</h1>
+          <div className="mb-2 flex flex-wrap items-center gap-3">
+            <Target className="h-7 w-7 text-primary" />
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              Marketing Intelligence
+            </h1>
+            <Badge variant="secondary">Strategy ready · Pillars in next phase</Badge>
           </div>
           <p className="text-muted-foreground">
-            Recommendations for <span className="font-medium text-foreground">{activeProduct.name}</span>
+            Platform and tone recommendations for{" "}
+            <span className="font-medium text-foreground">{activeProduct.name}</span>.
+            Content pillar management arrives in Phase 4.3.
           </p>
         </div>
-        <Button asChild variant="outline">
+        <Button asChild variant="outline" className="shrink-0">
           <Link href="/dashboard">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Home
+            Overview
           </Link>
         </Button>
       </div>

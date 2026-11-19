@@ -419,9 +419,9 @@ export default function ContentPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Content</h1>
+          <h1 className="text-3xl font-bold">Content Studio</h1>
           <p className="text-muted-foreground mt-2">
-            Choose a platform to view and manage posts, or see all content.
+            Manage drafts by platform. Idea boards and generate-from-idea land in Phase 4.3.
           </p>
         </div>
         {isLoading ? (

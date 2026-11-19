@@ -14,6 +14,7 @@ export default defineConfig({
       "lib/ideas/**/*.test.ts",
       "lib/planner/**/*.test.ts",
       "lib/validation/**/*.test.ts",
+      "lib/guide/**/*.test.ts",
     ],
     clearMocks: true,
   },

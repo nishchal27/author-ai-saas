@@ -11,6 +11,7 @@ import { Loader2, Github, RefreshCw, HelpCircle, Crown, Sparkles } from "lucide-
 import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { queryKeys } from "@/lib/query-keys"
 
 async function fetchSettings() {
   const res = await fetch("/api/settings")
@@ -257,6 +258,15 @@ export default function SettingsPage() {
 
   const hasGitHubIntegration = settingsData?.user?.integrations?.some((i: any) => i.type === "github" && i.isActive)
 
+  const { data: usageData } = useQuery({
+    queryKey: queryKeys.usage,
+    queryFn: async () => {
+      const res = await fetch("/api/usage")
+      if (!res.ok) throw new Error("Failed to fetch usage")
+      return res.json()
+    },
+  })
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
@@ -265,6 +275,29 @@ export default function SettingsPage() {
           Configure your brand voice and integrations
         </p>
       </div>
+
+      {usageData?.daily && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">AI usage today</CardTitle>
+            <CardDescription>
+              Soft daily limit for AI requests. Provider details are not exposed.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm">
+              <span className="font-semibold">{usageData.daily.requests}</span>
+              <span className="text-muted-foreground">
+                {" "}
+                of {usageData.daily.limit} requests used
+                {typeof usageData.daily.remaining === "number"
+                  ? ` · ${usageData.daily.remaining} remaining`
+                  : ""}
+              </span>
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

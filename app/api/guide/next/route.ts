@@ -5,9 +5,7 @@ import { NextResponse } from "next/server"
 
 /**
  * GET /api/guide/next
- *
- * Returns the single recommended "next best action" for the user, product-aware.
- * Used by the Home page to show one clear CTA.
+ * Single next-best action for Overview — Brand → Pillars → Ideas → Drafts → Plan.
  */
 export async function GET(req: Request) {
   try {
@@ -17,11 +15,9 @@ export async function GET(req: Request) {
     }
 
     const user = await ensureUserForClerkId(userId)
-
     const { searchParams } = new URL(req.url)
     let productId = searchParams.get("productId") || user.activeProductId
 
-    // Resolve product: if no active product but user has products, use first product
     if (!productId) {
       const firstProduct = await db.product.findFirst({
         where: { userId: user.id },
@@ -30,119 +26,193 @@ export async function GET(req: Request) {
       productId = firstProduct?.id ?? null
     }
 
-    // 1. No product at all → add product
     if (!productId) {
       return NextResponse.json({
         step: "add_product",
-        reason: "Add your product so we can recommend what to post.",
-        cta: "Add your product",
-        href: "/dashboard",
+        reason: "Add your brand so Varabhi can learn your voice and recommend content.",
+        cta: "Add your brand",
+        href: "/dashboard?addBrand=1",
       })
     }
 
     const product = await db.product.findFirst({
       where: { id: productId, userId: user.id },
-      include: { strategy: true },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        brandProfileStatus: true,
+        brandSummaryApproved: true,
+        brandApprovedAt: true,
+      },
     })
 
     if (!product) {
       return NextResponse.json({
         step: "add_product",
-        reason: "Select or add a product to get started.",
-        cta: "Add your product",
-        href: "/dashboard",
+        reason: "Select or add a brand to get started.",
+        cta: "Add your brand",
+        href: "/dashboard?addBrand=1",
       })
     }
 
-    // 2. Product but no strategy → view strategy
-    if (!product.strategy) {
+    // 1. Incomplete profile basics
+    if (!product.description?.trim()) {
       return NextResponse.json({
-        step: "view_strategy",
-        reason: "We need a strategy for this product before recommending posts.",
-        cta: "See your strategy",
-        href: "/dashboard/strategy",
+        step: "complete_brand_profile",
+        reason: `Add a short description for ${product.name} so we can propose an accurate brand summary.`,
+        cta: "Complete brand profile",
+        href: "/dashboard/brand",
+        productId: product.id,
       })
     }
 
-    // 3. Draft in "draft" status → review draft (highest priority so user finishes what they started)
+    // 2. Need proposed or approved summary
+    if (
+      product.brandProfileStatus === "incomplete" ||
+      (!product.brandSummaryApproved && product.brandProfileStatus !== "proposed")
+    ) {
+      return NextResponse.json({
+        step: "generate_brand_summary",
+        reason: "Generate an AI brand summary, then review and approve it before creating content.",
+        cta: "Generate brand summary",
+        href: "/dashboard/brand",
+        productId: product.id,
+      })
+    }
+
+    // 3. Proposed but not approved
+    if (product.brandProfileStatus === "proposed" || !product.brandSummaryApproved) {
+      return NextResponse.json({
+        step: "approve_brand_summary",
+        reason: "A brand summary is waiting for your review. Approve it so drafts stay grounded.",
+        cta: "Review and approve",
+        href: "/dashboard/brand",
+        productId: product.id,
+      })
+    }
+
+    // 4. Pillars
+    const pillarCount = await db.contentPillar.count({
+      where: { userId: user.id, productId: product.id, isActive: true },
+    })
+    const approvedPillars = await db.contentPillar.count({
+      where: {
+        userId: user.id,
+        productId: product.id,
+        isActive: true,
+        approvalStatus: "approved",
+      },
+    })
+
+    if (pillarCount === 0) {
+      return NextResponse.json({
+        step: "generate_pillars",
+        reason: "Create content pillars so ideas stay on-brand. Available in Marketing Intelligence.",
+        cta: "Open Marketing Intelligence",
+        href: "/dashboard/strategy",
+        productId: product.id,
+      })
+    }
+
+    if (approvedPillars === 0) {
+      return NextResponse.json({
+        step: "approve_pillars",
+        reason: "You have proposed pillars waiting for review.",
+        cta: "Review pillars",
+        href: "/dashboard/strategy",
+        productId: product.id,
+      })
+    }
+
+    // 5. Ideas
+    const ideaCount = await db.contentIdea.count({
+      where: {
+        userId: user.id,
+        productId: product.id,
+        status: { in: ["proposed", "saved", "converted"] },
+      },
+    })
+
+    if (ideaCount === 0) {
+      return NextResponse.json({
+        step: "generate_ideas",
+        reason: "Generate practical content ideas for this brand.",
+        cta: "Generate ideas",
+        href: "/dashboard/content",
+        productId: product.id,
+      })
+    }
+
+    const savedWithoutDraft = await db.contentIdea.findFirst({
+      where: {
+        userId: user.id,
+        productId: product.id,
+        status: { in: ["proposed", "saved"] },
+        drafts: { none: {} },
+      },
+      orderBy: { updatedAt: "desc" },
+    })
+
+    if (savedWithoutDraft) {
+      return NextResponse.json({
+        step: "create_draft",
+        reason: `Turn “${savedWithoutDraft.title}” into a platform draft.`,
+        cta: "Open Content Studio",
+        href: "/dashboard/content",
+        productId: product.id,
+        ideaId: savedWithoutDraft.id,
+      })
+    }
+
+    // 6. Drafts needing attention
     const pendingDraft = await db.contentDraft.findFirst({
       where: {
         userId: user.id,
         productId: product.id,
         status: "draft",
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { updatedAt: "desc" },
     })
 
     if (pendingDraft) {
       return NextResponse.json({
         step: "review_draft",
-        reason: "Review your draft before posting.",
+        reason: "You have a draft ready to review and refine.",
         cta: "Review draft",
         href: `/dashboard/content?draftId=${pendingDraft.id}`,
+        productId: product.id,
         draftId: pendingDraft.id,
-        draftTitle: pendingDraft.title || `${pendingDraft.type} for ${pendingDraft.platform || "general"}`,
       })
     }
 
-    // 4. Unprocessed activity (for this product) → get angle
-    const unprocessedActivity = await db.activity.findFirst({
+    // 7. Weekly plan
+    const weekStart = startOfUtcMonday()
+    const plan = await db.weeklyContentPlan.findFirst({
       where: {
         userId: user.id,
         productId: product.id,
-        processed: false,
+        weekStart,
       },
-      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { items: true } } },
     })
 
-    if (unprocessedActivity) {
+    if (!plan || plan._count.items === 0) {
       return NextResponse.json({
-        step: "get_angle",
-        reason: "We have something to turn into a post.",
-        cta: "Get the angle",
-        href: `/dashboard?action=extract&activityId=${unprocessedActivity.id}`,
-        activityId: unprocessedActivity.id,
-        activityTitle: unprocessedActivity.title,
-      })
-    }
-
-    // 5. Insight with no approved/scheduled draft → create post
-    const insights = await db.insight.findMany({
-      where: {
-        userId: user.id,
+        step: "plan_week",
+        reason: "Add ideas or drafts to this week’s plan to stay consistent.",
+        cta: "Open Content Planner",
+        href: "/dashboard/plan",
         productId: product.id,
-      },
-      include: {
-        contentDrafts: {
-          where: { status: { in: ["approved", "scheduled", "published"] } },
-          take: 1,
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    })
-
-    const insightWithoutDraft = insights.find((i) => i.contentDrafts.length === 0)
-
-    if (insightWithoutDraft) {
-      const oneLiner = insightWithoutDraft.solution || insightWithoutDraft.coreProblem
-      return NextResponse.json({
-        step: "create_post",
-        reason: "This angle is ready to share.",
-        cta: "Create post",
-        href: `/dashboard/content/create?insightId=${insightWithoutDraft.id}`,
-        insightId: insightWithoutDraft.id,
-        oneLiner: oneLiner.slice(0, 120) + (oneLiner.length > 120 ? "…" : ""),
-        whyAudienceCares: insightWithoutDraft.whyMatters,
       })
     }
 
-    // 6. Else → share story
     return NextResponse.json({
-      step: "share_story",
-      reason: "Add what you're working on to get a post idea.",
-      cta: "Share a story",
-      href: "/dashboard/activities/new",
+      step: "continue_plan",
+      reason: "Your brand is set up. Keep moving this week’s plan forward.",
+      cta: "View this week",
+      href: "/dashboard/plan",
+      productId: product.id,
     })
   } catch (error) {
     console.error("Error in guide/next:", error)
@@ -151,4 +221,15 @@ export async function GET(req: Request) {
       { status: 500 }
     )
   }
+}
+
+function startOfUtcMonday(d = new Date()): Date {
+  const date = new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  )
+  const day = date.getUTCDay()
+  const diff = day === 0 ? -6 : 1 - day
+  date.setUTCDate(date.getUTCDate() + diff)
+  date.setUTCHours(0, 0, 0, 0)
+  return date
 }

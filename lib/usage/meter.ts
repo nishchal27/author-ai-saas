@@ -168,7 +168,12 @@ export async function aggregateSuccessfulUsage(
     },
   })
 
-  return events.reduce(
+  return events.reduce<{
+    inputTokens: number
+    outputTokens: number
+    estimatedCostUsd: number
+    successAttempts: number
+  }>(
     (acc, e) => {
       acc.inputTokens += e.inputTokens ?? 0
       acc.outputTokens += e.outputTokens ?? 0
