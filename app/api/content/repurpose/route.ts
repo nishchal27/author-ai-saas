@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
 import { ensureUserForClerkId } from "@/lib/users"
-import { checkRateLimit } from "@/lib/rate-limit"
+import { checkAiRateLimits } from "@/lib/rate-limit"
 import { parseBody, contentRepurposeSchema } from "@/lib/validation"
 import { generateContent, ProductContext, StrategyContext } from "@/lib/claude"
 import { decideContentOptions } from "@/lib/content-decision"
@@ -19,7 +19,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const rateLimit = checkRateLimit(userId)
+    const user = await ensureUserForClerkId(userId)
+    const rateLimit = await checkAiRateLimits(user.id)
     if (rateLimit) return rateLimit
 
     const raw = await req.json().catch(() => null)
@@ -33,8 +34,6 @@ export async function POST(req: Request) {
       type: typeOverride,
       platform: platformOverride,
     } = parsed.data
-
-    const user = await ensureUserForClerkId(userId)
 
     const sourceDraft = await db.contentDraft.findFirst({
       where: { id: sourceDraftId, userId: user.id },

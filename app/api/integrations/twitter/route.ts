@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
-import { encryptToken } from "@/lib/crypto"
+import { assertCanStoreTokens, encryptToken } from "@/lib/crypto"
 import { ensureUserForClerkId } from "@/lib/users"
 import { parseBody, integrationTwitterSchema } from "@/lib/validation"
 import { NextResponse } from "next/server"
@@ -26,6 +26,7 @@ export async function POST(req: Request) {
       },
     })
 
+    assertCanStoreTokens()
     const storedAccess = encryptToken(accessToken)
     const storedRefresh = refreshToken ? encryptToken(refreshToken) : null
     if (existing) {

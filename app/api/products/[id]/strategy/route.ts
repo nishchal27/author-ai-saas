@@ -10,6 +10,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/db"
 import { ensureUserForClerkId } from "@/lib/users"
+import { checkAiRateLimits } from "@/lib/rate-limit"
 import { generateMarketingStrategy, formatStrategyForDisplay, type ProductType, type ProductStage, type SalesMotion } from "@/lib/strategy"
 
 // GET /api/products/[id]/strategy - Get formatted strategy for display
@@ -88,6 +89,8 @@ export async function POST(
     const { id } = await params
 
     const user = await ensureUserForClerkId(clerkId)
+    const rateLimit = await checkAiRateLimits(user.id)
+    if (rateLimit) return rateLimit
 
     const product = await prisma.product.findFirst({
       where: { id, userId: user.id },

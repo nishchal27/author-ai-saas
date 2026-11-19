@@ -77,7 +77,6 @@ export async function POST(req: Request) {
           scheduleId: schedule.id,
           externalId: schedule.externalId,
           platform: schedule.platform,
-          accessToken: decrypted.accessToken,
         },
       })
 
@@ -118,7 +117,6 @@ export async function POST(req: Request) {
               scheduleId: schedule.id,
               externalId: schedule.externalId,
               platform: schedule.platform,
-              accessToken: decrypted.accessToken,
             },
           })
         })

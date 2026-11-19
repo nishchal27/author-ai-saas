@@ -6,8 +6,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Session/direct URL for migrations & introspection. Prefer session pooler (:5432)
+  // when the db.<ref>.supabase.co host is IPv6-only and unreachable from the local network.
+  directUrl = env("DIRECT_URL")
 }
 
 model User {

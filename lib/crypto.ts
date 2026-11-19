@@ -11,14 +11,42 @@ function getKey(): Buffer | null {
   return crypto.createHash("sha256").update(raw).digest()
 }
 
+/** True when ENCRYPTION_KEY is present and long enough to encrypt tokens. */
+export function isEncryptionConfigured(): boolean {
+  return getKey() != null
+}
+
 /**
- * Encrypt a token for storage. Returns a string prefixed with "enc:" so we can detect encrypted values.
- * If ENCRYPTION_KEY is not set, returns plaintext (backward compatible).
+ * Fail closed before writing third-party tokens.
+ * Production always requires encryption. Development may allow plaintext only when
+ * ALLOW_PLAINTEXT_TOKENS=1 is explicitly set (local prototyping).
+ */
+export function assertCanStoreTokens(): void {
+  if (isEncryptionConfigured()) return
+  const allowPlaintext =
+    process.env.NODE_ENV !== "production" &&
+    process.env.ALLOW_PLAINTEXT_TOKENS === "1"
+  if (allowPlaintext) return
+  throw new Error(
+    "ENCRYPTION_KEY is required to store integration tokens. Set ENCRYPTION_KEY (16+ chars)."
+  )
+}
+
+/**
+ * Encrypt a token for storage. Returns a string prefixed with "enc:".
+ * Call assertCanStoreTokens() before persisting; this still refuses to return
+ * plaintext unless ALLOW_PLAINTEXT_TOKENS=1 in non-production.
  */
 export function encryptToken(plain: string): string {
   if (!plain) return plain
   const key = getKey()
-  if (!key) return plain
+  if (!key) {
+    const allowPlaintext =
+      process.env.NODE_ENV !== "production" &&
+      process.env.ALLOW_PLAINTEXT_TOKENS === "1"
+    if (allowPlaintext) return plain
+    throw new Error("ENCRYPTION_KEY is required to encrypt integration tokens")
+  }
   const iv = crypto.randomBytes(IV_LEN)
   const cipher = crypto.createCipheriv(ALGO, key, iv)
   const enc = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()])
@@ -34,7 +62,7 @@ export function decryptToken(stored: string | null | undefined): string | null {
   if (stored == null || stored === "") return null
   if (!stored.startsWith(PREFIX)) return stored
   const key = getKey()
-  if (!key) return stored
+  if (!key) return null
   try {
     const buf = Buffer.from(stored.slice(PREFIX.length), "base64url")
     if (buf.length < IV_LEN + AUTH_TAG_LEN) return null

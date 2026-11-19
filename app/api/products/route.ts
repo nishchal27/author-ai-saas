@@ -9,7 +9,8 @@ import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/db"
 import { ensureUserForClerkId } from "@/lib/users"
-import { parseBody, productCreateSchema } from "@/lib/validation"
+import { parseBody, productCreateSchema, activeProductSchema } from "@/lib/validation"
+import { checkAiRateLimits } from "@/lib/rate-limit"
 import { generateMarketingStrategy, type ProductType, type ProductStage, type SalesMotion } from "@/lib/strategy"
 
 // GET /api/products - Get all products for user
@@ -55,13 +56,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const user = await ensureUserForClerkId(clerkId)
+    const rateLimit = await checkAiRateLimits(user.id)
+    if (rateLimit) return rateLimit
+
     const raw = await request.json().catch(() => null)
     const parsed = parseBody(raw, productCreateSchema)
     if ("error" in parsed) return parsed.error
 
     const { name, type, industry, audience, audienceDetail, stage, salesMotion, description, website, competitors } = parsed.data
-
-    const user = await ensureUserForClerkId(clerkId)
 
     // Create product
     const product = await prisma.product.create({
@@ -147,8 +150,10 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { activeProductId } = body
+    const raw = await request.json().catch(() => null)
+    const parsed = parseBody(raw, activeProductSchema)
+    if ("error" in parsed) return parsed.error
+    const { activeProductId } = parsed.data
 
     let user
     try {

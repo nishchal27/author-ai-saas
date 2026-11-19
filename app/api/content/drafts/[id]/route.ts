@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
 import { ensureUserForClerkId } from "@/lib/users"
+import { parseBody, draftPatchSchema } from "@/lib/validation"
 import { NextResponse } from "next/server"
 
 export async function DELETE(
@@ -15,20 +16,16 @@ export async function DELETE(
 
     const user = await ensureUserForClerkId(userId)
 
-    const draft = await db.contentDraft.findFirst({
+    const result = await db.contentDraft.deleteMany({
       where: {
         id: params.id,
         userId: user.id,
       },
     })
 
-    if (!draft) {
+    if (result.count === 0) {
       return NextResponse.json({ error: "Draft not found" }, { status: 404 })
     }
-
-    await db.contentDraft.delete({
-      where: { id: params.id },
-    })
 
     return NextResponse.json({ ok: true })
   } catch (error) {
@@ -52,8 +49,10 @@ export async function PATCH(
 
     const user = await ensureUserForClerkId(userId)
 
-    const body = await req.json()
-    const { content, status } = body
+    const raw = await req.json().catch(() => null)
+    const parsed = parseBody(raw, draftPatchSchema)
+    if ("error" in parsed) return parsed.error
+    const { content, status } = parsed.data
 
     const draft = await db.contentDraft.findFirst({
       where: {
@@ -66,13 +65,24 @@ export async function PATCH(
       return NextResponse.json({ error: "Draft not found" }, { status: 404 })
     }
 
-    const updated = await db.contentDraft.update({
-      where: { id: params.id },
+    const result = await db.contentDraft.updateMany({
+      where: {
+        id: params.id,
+        userId: user.id,
+      },
       data: {
         ...(content !== undefined ? { content } : {}),
         ...(status !== undefined ? { status } : {}),
         version: draft.version + 1,
       },
+    })
+
+    if (result.count === 0) {
+      return NextResponse.json({ error: "Draft not found" }, { status: 404 })
+    }
+
+    const updated = await db.contentDraft.findFirst({
+      where: { id: params.id, userId: user.id },
     })
 
     return NextResponse.json({ draft: updated })

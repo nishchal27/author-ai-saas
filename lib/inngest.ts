@@ -144,7 +144,6 @@ export const checkScheduledContent = inngest.createFunction(
               scheduleId: schedule.id,
               externalId,
               platform: schedule.platform,
-              accessToken: integration.accessToken,
             },
             ts: Date.now() + 5 * 60 * 1000, // 5 minutes from now (Unix ms)
           })
@@ -318,9 +317,29 @@ export const syncAnalyticsAfterPublish = inngest.createFunction(
     event: "content/published",
   },
   async ({ event, step }) => {
-    const { scheduleId, externalId, platform, accessToken } = event.data
+    const { scheduleId, externalId, platform } = event.data
 
     const analytics = await step.run("fetch-analytics", async () => {
+      const schedule = await db.schedule.findUnique({
+        where: { id: scheduleId },
+        include: {
+          user: { include: { integrations: true } },
+        },
+      })
+      if (!schedule) {
+        throw new Error("Schedule not found")
+      }
+      const integration = schedule.user.integrations.find(
+        (i) => i.type === platform && i.isActive
+      )
+      if (!integration) {
+        throw new Error(`No active ${platform} integration`)
+      }
+      const decrypted = getDecryptedIntegration(integration)
+      if (!decrypted.accessToken) {
+        throw new Error(`No access token for ${platform}`)
+      }
+
       let result: {
         views: number
         likes: number
@@ -329,9 +348,9 @@ export const syncAnalyticsAfterPublish = inngest.createFunction(
       }
 
       if (platform === "linkedin") {
-        result = await getLinkedInAnalytics(accessToken, externalId)
+        result = await getLinkedInAnalytics(decrypted.accessToken, externalId)
       } else if (platform === "twitter") {
-        result = await getTwitterAnalytics(accessToken, externalId)
+        result = await getTwitterAnalytics(decrypted.accessToken, externalId)
       } else {
         throw new Error(`Platform ${platform} not supported`)
       }
@@ -495,7 +514,6 @@ export const retryFailedPublishes = inngest.createFunction(
                 scheduleId: schedule.id,
                 externalId,
                 platform: schedule.platform,
-                accessToken: decrypted.accessToken,
               },
               ts: Date.now() + 5 * 60 * 1000, // 5 minutes from now (Unix ms)
             })

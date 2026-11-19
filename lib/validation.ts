@@ -117,6 +117,51 @@ export const githubSyncSchema = z.object({
   repoUrl: z.string().url().max(500),
 })
 
+/** Settings PATCH — tier is intentionally excluded (server-controlled only). */
+export const settingsPatchSchema = z
+  .object({
+    brandVoice: z.string().max(10000).optional(),
+    founderBio: z.string().max(5000).optional(),
+  })
+  .strict()
+
+/** Product PATCH */
+export const productPatchSchema = productCreateSchema
+  .partial()
+  .extend({
+    isActive: z.boolean().optional(),
+    techStack: z
+      .union([
+        z.array(
+          z.object({
+            name: z.string().min(1).max(100),
+            version: z.string().max(50).optional(),
+            note: z.string().max(500).optional(),
+          })
+        ),
+        z.string().max(10000),
+      ])
+      .optional(),
+  })
+  .strict()
+
+/** Set active product */
+export const activeProductSchema = z
+  .object({
+    activeProductId: z.string().cuid().nullable(),
+  })
+  .strict()
+
+/** Draft PATCH */
+export const draftPatchSchema = z
+  .object({
+    content: z.string().min(1).max(50000).optional(),
+    status: z
+      .enum(["draft", "approved", "scheduled", "published", "rejected"])
+      .optional(),
+  })
+  .strict()
+
 export type ProductCreateInput = z.infer<typeof productCreateSchema>
 export type ActivityCreateInput = z.infer<typeof activityCreateSchema>
 export type InsightCreateInput = z.infer<typeof insightCreateSchema>

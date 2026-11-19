@@ -8,6 +8,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/db"
 import { ensureUserForClerkId } from "@/lib/users"
+import { parseBody, productPatchSchema } from "@/lib/validation"
 
 // GET /api/products/[id] - Get a specific product with its strategy
 export async function GET(
@@ -64,7 +65,9 @@ export async function PATCH(
     }
 
     const { id } = await params
-    const body = await request.json()
+    const raw = await request.json().catch(() => null)
+    const parsed = parseBody(raw, productPatchSchema)
+    if ("error" in parsed) return parsed.error
 
     const user = await ensureUserForClerkId(clerkId)
 
@@ -76,7 +79,20 @@ export async function PATCH(
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 
-    const { name, type, industry, audience, audienceDetail, stage, salesMotion, description, website, competitors, isActive, techStack } = body
+    const {
+      name,
+      type,
+      industry,
+      audience,
+      audienceDetail,
+      stage,
+      salesMotion,
+      description,
+      website,
+      competitors,
+      isActive,
+      techStack,
+    } = parsed.data
 
     const techStackJson =
       techStack !== undefined
@@ -87,8 +103,8 @@ export async function PATCH(
             : undefined
         : undefined
 
-    const product = await prisma.product.update({
-      where: { id },
+    const updatedCount = await prisma.product.updateMany({
+      where: { id, userId: user.id },
       data: {
         ...(name !== undefined && { name }),
         ...(type !== undefined && { type }),
@@ -103,9 +119,15 @@ export async function PATCH(
         ...(isActive !== undefined && { isActive }),
         ...(techStackJson !== undefined && { techStackJson }),
       },
-      include: {
-        strategy: true,
-      },
+    })
+
+    if (updatedCount.count === 0) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 })
+    }
+
+    const product = await prisma.product.findFirst({
+      where: { id, userId: user.id },
+      include: { strategy: true },
     })
 
     return NextResponse.json({ product })

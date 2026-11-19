@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
 import { ensureUserForClerkId } from "@/lib/users"
-import { checkRateLimit } from "@/lib/rate-limit"
+import { checkAiRateLimits } from "@/lib/rate-limit"
 import { parseBody, contentGenerateSchema } from "@/lib/validation"
 import { ProductContext, StrategyContext } from "@/lib/claude"
 import type { AudienceSegment, ContentIntent, Persona } from "@/lib/content-intelligence"
@@ -16,7 +16,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const rateLimit = checkRateLimit(userId)
+    const user = await ensureUserForClerkId(userId)
+    const rateLimit = await checkAiRateLimits(user.id)
     if (rateLimit) return rateLimit
 
     const raw = await req.json().catch(() => null)
@@ -33,8 +34,6 @@ export async function POST(req: Request) {
       reason,
       context,
     } = parsed.data
-
-    const user = await ensureUserForClerkId(userId)
 
     // Fetch insight
     const insight = await db.insight.findFirst({
@@ -162,24 +161,27 @@ export async function POST(req: Request) {
       },
     })
 
-    // Evaluation layer: rate draft for platform and goal fit
+    // Hybrid QC: AI review only for high-value formats (blog) — not every generation
     let evaluationScore: number | null = null
     let evaluationNote: string | null = null
-    try {
-      const evaluation = await evaluateContent(
-        contentData.content,
-        platform || "linkedin",
-        intentForDecision,
-        reason ?? context ?? undefined
-      )
-      evaluationScore = evaluation.score
-      evaluationNote = evaluation.note || null
-      await db.contentDraft.update({
-        where: { id: draft.id },
-        data: { evaluationScore, evaluationNote },
-      })
-    } catch (e) {
-      console.error("Content evaluation failed:", e)
+    const shouldAiReview = (type || "").toLowerCase() === "blog"
+    if (shouldAiReview) {
+      try {
+        const evaluation = await evaluateContent(
+          contentData.content,
+          platform || "linkedin",
+          intentForDecision,
+          reason ?? context ?? undefined
+        )
+        evaluationScore = evaluation.score
+        evaluationNote = evaluation.note || null
+        await db.contentDraft.update({
+          where: { id: draft.id },
+          data: { evaluationScore, evaluationNote },
+        })
+      } catch (e) {
+        console.error("Content evaluation failed:", e)
+      }
     }
 
     // Check if platform is recommended
