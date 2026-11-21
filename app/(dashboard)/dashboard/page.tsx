@@ -196,7 +196,9 @@ export default function OverviewPage() {
       <Card>
         <CardHeader>
           <CardTitle>Couldn’t load your brands</CardTitle>
-          <CardDescription>Refresh the page or try again shortly.</CardDescription>
+          <CardDescription>
+            This is a load failure, not an empty workspace. Refresh or try again.
+          </CardDescription>
         </CardHeader>
       </Card>
     )
@@ -210,8 +212,8 @@ export default function OverviewPage() {
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">Welcome to Varabhi</h1>
         <p className="mt-2 text-muted-foreground">
-          Add your brand once. We’ll help you approve facts, decide what to create,
-          and draft on-brand content.
+          Add your first brand to get started. Next you’ll open Brand Studio to teach
+          Varabhi who you are — then pillars, ideas, drafts, and your weekly plan.
         </p>
         <Button size="lg" className="mt-6" onClick={() => setShowOnboarding(true)}>
           Add your brand

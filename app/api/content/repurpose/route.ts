@@ -145,6 +145,11 @@ export async function POST(req: Request) {
         audienceSegment: decision.audienceSegment,
         persona: decision.persona,
         toneDepth: decision.toneDepth,
+        metering: {
+          userId: user.id,
+          brandId: product?.id,
+          task: "content.repurpose",
+        },
       }
     )
 

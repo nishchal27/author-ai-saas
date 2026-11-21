@@ -40,8 +40,8 @@ A production-grade SaaS that helps solo founders turn their real product + produ
 - Node.js 18+
 - PostgreSQL database
 - Clerk account (for authentication)
-- Anthropic API key (for Claude)
-- OpenAI API key (for DALL·E)
+- Optional: Anthropic / OpenAI / OpenRouter API key (AI features only)
+- Optional: Inngest account (scheduled publishing / background jobs)
 
 ### Installation
 
@@ -56,24 +56,27 @@ cd author-ai-saas
 npm install
 ```
 
-3. Set up environment variables:
+3. Set up environment variables (full list and comments in `.env.example`):
 ```bash
 cp .env.example .env
 ```
 
-Add the following to your `.env`:
+Minimum for local boot:
 ```
 DATABASE_URL="postgresql://user:password@localhost:5432/varabhi"
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
-CLERK_SECRET_KEY=your_clerk_secret_key
-ANTHROPIC_API_KEY=your_anthropic_api_key
-OPENAI_API_KEY=your_openai_api_key
+DIRECT_URL="postgresql://user:password@localhost:5432/varabhi"
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-4. Set up the database:
+See [`SETUP.md`](./SETUP.md) for production requirements (`ENCRYPTION_KEY`, `CRON_SECRET`), AI keys, and Inngest.
+
+4. Set up the database (use migrations — not `db push` for shared/production DBs):
 ```bash
 npx prisma generate
-npx prisma db push
+npx prisma migrate dev
+# Production / staging: npx prisma migrate deploy
 ```
 
 5. **(Optional)** Populate the database with realistic seed data (2 products, activities, insights, content, calendar, analytics) so you can test the app with full data:
@@ -95,6 +98,13 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser. Sign in with the same Clerk user you used for `POPULATE_CLERK_ID` to see the seed data.
+
+### Docs & ops
+
+- Environment contract: [`.env.example`](./.env.example)
+- Full setup / migrate / health / Inngest: [`SETUP.md`](./SETUP.md)
+- Product & architecture: [`docs/README.md`](./docs/README.md)
+- Liveness: `GET /api/health` · DB readiness: `GET /api/health/db`
 
 ## 📁 Project Structure
 

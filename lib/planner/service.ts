@@ -1,6 +1,9 @@
 import { db } from "@/lib/db"
+import { weekStartUtc } from "@/lib/planner/dates"
 
 export type PlanItemStatus = "planned" | "in_progress" | "completed"
+
+export { weekStartUtc }
 
 export class PlannerDomainError extends Error {
   status: number
@@ -9,18 +12,6 @@ export class PlannerDomainError extends Error {
     this.name = "PlannerDomainError"
     this.status = status
   }
-}
-
-/** UTC Monday 00:00 for the calendar week containing `date`. */
-export function weekStartUtc(date: Date = new Date()): Date {
-  const d = new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
-  )
-  const day = d.getUTCDay() // 0 Sun .. 6 Sat
-  const diff = day === 0 ? -6 : 1 - day
-  d.setUTCDate(d.getUTCDate() + diff)
-  d.setUTCHours(0, 0, 0, 0)
-  return d
 }
 
 async function assertProductOwnership(userId: string, productId: string) {

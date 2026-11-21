@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { SUPPORTED_PLATFORMS, PLATFORM_LABELS } from "@/lib/constants"
+import { queryKeys } from "@/lib/query-keys"
 import {
   AUDIENCE_SEGMENTS,
   AUDIENCE_SEGMENT_LABELS,
@@ -43,6 +44,7 @@ import {
   CONTENT_FORMAT_LABELS,
   getDefaultAudienceSegment,
 } from "@/lib/content-intelligence"
+import { IdeasBoard } from "@/components/ideas/ideas-board"
 
 async function fetchDrafts(scope: "active" | "all" = "active") {
   const res = await fetch(`/api/content/drafts?scope=${scope}`)
@@ -77,14 +79,18 @@ function getPlatformAlignment(platform: string | null, strategy: any) {
   }
 }
 
-async function updateDraft(id: string, data: { content?: string; status?: string }) {
+async function updateDraft(
+  id: string,
+  data: { title?: string; content?: string; status?: string }
+) {
   const res = await fetch(`/api/content/drafts/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error("Failed to update draft")
-  return res.json()
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error || "Failed to update draft")
+  return body
 }
 
 async function repurposeContent(payload: {
@@ -148,8 +154,8 @@ export default function ContentPage() {
   const [productFilter, setProductFilter] = useState("all")
   const [contentScope, setContentScope] = useState<"active" | "all">("active")
   
-  const { data, isLoading } = useQuery({
-    queryKey: ["drafts", contentScope],
+  const { data, isLoading, isError: draftsError, refetch: refetchDrafts } = useQuery({
+    queryKey: queryKeys.drafts(contentScope),
     queryFn: () => fetchDrafts(contentScope),
   })
 
@@ -159,8 +165,12 @@ export default function ContentPage() {
     }
   }, [draftIdParam, data?.drafts?.length])
 
-  const { data: productsData } = useQuery({
-    queryKey: ["products"],
+  const {
+    data: productsData,
+    isError: productsError,
+    refetch: refetchProducts,
+  } = useQuery({
+    queryKey: queryKeys.products,
     queryFn: fetchProducts,
   })
 
@@ -188,6 +198,7 @@ export default function ContentPage() {
   }, [contentScope, productsData?.activeProductId, productsData?.products])
 
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState("")
   const [editContent, setEditContent] = useState("")
   const [repurposeDraftId, setRepurposeDraftId] = useState<string | null>(null)
   const [repurposeOpen, setRepurposeOpen] = useState(false)
@@ -203,17 +214,26 @@ export default function ContentPage() {
   const [expandedContentDraftId, setExpandedContentDraftId] = useState<string | null>(null)
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => updateDraft(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["drafts"] })
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      updateDraft(id, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.drafts() })
       setEditingId(null)
-      toast({
-        title: "Draft updated",
-        description: "Your changes have been saved.",
-        variant: "success",
-      })
+      if (variables.data?.status === "approved") {
+        toast({
+          title: "Draft approved",
+          description: "You can now schedule this content.",
+          variant: "success",
+        })
+      } else {
+        toast({
+          title: "Draft updated",
+          description: "Your changes have been saved.",
+          variant: "success",
+        })
+      }
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message || "Failed to update draft",
@@ -232,7 +252,7 @@ export default function ContentPage() {
       platform?: string
     }) => repurposeContent(payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["drafts"] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.drafts() })
       setRepurposeOpen(false)
       setRepurposeDraftId(null)
       toast({
@@ -253,7 +273,7 @@ export default function ContentPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteDraft(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["drafts"] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.drafts() })
       toast({
         title: "Draft deleted",
         description: "The content has been removed.",
@@ -273,7 +293,7 @@ export default function ContentPage() {
     mutationFn: ({ draftId, feedback }: { draftId: string; feedback?: string }) =>
       regenerateDraft(draftId, feedback),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["drafts"] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.drafts() })
       setRegenerateOpen(false)
       setRegenerateDraftId(null)
       setRegenerateFeedback("")
@@ -351,13 +371,17 @@ export default function ContentPage() {
 
   const handleEdit = (draft: any) => {
     setEditingId(draft.id)
+    setEditTitle(draft.title || "")
     setEditContent(draft.content)
   }
 
   const handleSave = (id: string) => {
     updateMutation.mutate({
       id,
-      data: { content: editContent },
+      data: {
+        ...(editTitle.trim() ? { title: editTitle.trim() } : {}),
+        content: editContent,
+      },
     })
   }
 
@@ -365,11 +389,6 @@ export default function ContentPage() {
     updateMutation.mutate({
       id,
       data: { status: "approved" },
-    })
-    toast({
-      title: "Draft approved",
-      description: "You can now schedule this content.",
-      variant: "success",
     })
   }
 
@@ -414,16 +433,41 @@ export default function ContentPage() {
     })
   }
 
-  // Dashboard view: platform cards when no platform selected (unless opening a specific draft from Home)
+  const tabParam = searchParams.get("tab") || "ideas"
+  const activeProductId =
+    productsData?.activeProductId || productsData?.products?.[0]?.id || null
+
+  // Hub: Ideas board (primary) + Drafts by platform
   if (!platformParam && !draftIdParam) {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold">Content Studio</h1>
           <p className="text-muted-foreground mt-2">
-            Manage drafts by platform. Idea boards and generate-from-idea land in Phase 4.3.
+            Turn brand ideas into drafts, then refine by platform.
           </p>
         </div>
+
+        <Tabs
+          value={tabParam === "drafts" ? "drafts" : "ideas"}
+          onValueChange={(v) =>
+            router.replace(`/dashboard/content?tab=${v}`)
+          }
+        >
+          <TabsList>
+            <TabsTrigger value="ideas">Ideas</TabsTrigger>
+            <TabsTrigger value="drafts">Drafts</TabsTrigger>
+          </TabsList>
+          <TabsContent value="ideas" className="mt-6">
+            {activeProductId ? (
+              <IdeasBoard productId={activeProductId} />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Select a brand to manage ideas.
+              </p>
+            )}
+          </TabsContent>
+          <TabsContent value="drafts" className="mt-6 space-y-4">
         {isLoading ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
@@ -506,8 +550,10 @@ export default function ContentPage() {
           </div>
         )}
         <p className="text-sm text-muted-foreground">
-          Click a platform to view its posts, or use &quot;Create … post&quot; to start a new draft. All creation happens here in Content.
+          Open a platform to review drafts. Prefer creating drafts from Ideas when possible.
         </p>
+          </TabsContent>
+        </Tabs>
       </div>
     )
   }
@@ -516,7 +562,7 @@ export default function ContentPage() {
     <div className="space-y-6">
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <Button variant="ghost" size="sm" className="mb-2 -ml-2" onClick={() => router.push("/dashboard/content")}>
+          <Button variant="ghost" size="sm" className="mb-2 -ml-2" onClick={() => router.push("/dashboard/content?tab=drafts")}>
             ← Back to Content
           </Button>
           <h1 className="text-3xl font-bold">
@@ -541,7 +587,7 @@ export default function ContentPage() {
                     : "hover:bg-muted"
                 }`}
               >
-                This product
+                This brand
               </button>
               <button
                 type="button"
@@ -552,7 +598,7 @@ export default function ContentPage() {
                     : "hover:bg-muted"
                 }`}
               >
-                All products
+                All brands
               </button>
             </div>
           </div>
@@ -685,14 +731,14 @@ export default function ContentPage() {
             </div>
             {contentScope === "all" && productsData?.products && productsData.products.length > 1 && (
               <div className="grid gap-2">
-                <Label className="text-xs">Product</Label>
+                <Label className="text-xs">Brand</Label>
                 <Select value={productFilter} onValueChange={setProductFilter}>
                   <SelectTrigger className="w-[160px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All products</SelectItem>
-                    {productsData.products.map((p: any) => (
+                    <SelectItem value="all">All brands</SelectItem>
+                    {productsData.products.map((p: { id: string; name: string }) => (
                       <SelectItem key={p.id} value={p.id}>
                         {p.name}
                       </SelectItem>
@@ -733,6 +779,28 @@ export default function ContentPage() {
         </CardContent>
       </Card>
 
+      {(productsError || draftsError) && (
+        <Card className="border-destructive/40">
+          <CardHeader>
+            <CardTitle className="text-base">Couldn’t load content</CardTitle>
+            <CardDescription>
+              This is a load failure, not an empty brand. Try again.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                void refetchProducts()
+                void refetchDrafts()
+              }}
+            >
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {isLoading ? (
         <div className="grid gap-6">
           {[1, 2, 3].map((i) => (
@@ -741,12 +809,32 @@ export default function ContentPage() {
         </div>
       ) : (
         <div className="space-y-8">
+          {contentScope === "active" &&
+            !productsData?.activeProductId &&
+            filteredDrafts.length === 0 &&
+            allDrafts.length === 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">No active brand selected</CardTitle>
+                  <CardDescription>
+                    Choose a brand in the switcher to see its drafts. Use “All brands”
+                    only when you intentionally want a cross-brand list.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button variant="outline" onClick={() => setContentScope("all")}>
+                    Show all brands
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           {contentScope === "all" && draftsByProduct && Object.keys(draftsByProduct).length > 0 ? (
             Object.entries(draftsByProduct).map(([productId, drafts]) => {
               const productName =
                 productId === "no-product"
-                  ? "No product"
-                  : productsData?.products?.find((p: any) => p.id === productId)?.name || "Unknown product"
+                  ? "No brand"
+                  : productsData?.products?.find((p: { id: string }) => p.id === productId)?.name ||
+                    "Unknown brand"
               return (
                 <section key={productId}>
                   <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -764,7 +852,9 @@ export default function ContentPage() {
               {filteredDrafts.map((draft: any) => renderDraftCard(draft))}
             </div>
           )}
-          {filteredDrafts.length === 0 && allDrafts.length === 0 && (
+          {filteredDrafts.length === 0 &&
+            allDrafts.length === 0 &&
+            !(contentScope === "active" && !productsData?.activeProductId) && (
             <EmptyContent />
           )}
           {filteredDrafts.length === 0 && allDrafts.length > 0 && (
@@ -992,7 +1082,7 @@ export default function ContentPage() {
                     <CardTitle>
                       {draft.title || `${draft.type} for ${draft.platform || "general"}`}
                     </CardTitle>
-                    <CardDescription className="flex items-center gap-2">
+                    <CardDescription className="flex flex-wrap items-center gap-2">
                       {format(new Date(draft.createdAt), "MMM d, yyyy")}
                       {product && (
                         <>
@@ -1000,6 +1090,14 @@ export default function ContentPage() {
                           <span className="flex items-center gap-1">
                             <Package className="h-3 w-3" />
                             {product.name}
+                          </span>
+                        </>
+                      )}
+                      {draft.contentIdea?.title && (
+                        <>
+                          <span>•</span>
+                          <span className="flex items-center gap-1">
+                            From idea: {draft.contentIdea.title}
                           </span>
                         </>
                       )}
@@ -1114,6 +1212,16 @@ export default function ContentPage() {
               <CardContent className="space-y-4">
                 {editingId === draft.id ? (
                   <div className="space-y-2">
+                    {draft.contentIdea?.title && (
+                      <p className="text-xs text-muted-foreground">
+                        Source idea: {draft.contentIdea.title}
+                      </p>
+                    )}
+                    <Input
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      placeholder="Draft title"
+                    />
                     <Textarea
                       value={editContent}
                       onChange={(e) => setEditContent(e.target.value)}

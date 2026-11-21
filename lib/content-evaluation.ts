@@ -20,11 +20,19 @@ export async function evaluateContent(
   content: string,
   platform: string,
   intent: string,
-  valueReason?: string
+  valueReason?: string,
+  metering?: { userId: string; brandId?: string }
 ): Promise<EvaluationResult> {
   try {
+    if (!metering?.userId) {
+      // Soft skip: never call a provider without attribution.
+      return { score: 0.5, note: "Evaluation skipped (metering required)." }
+    }
+
     const result = await executeAi<ContentReviewOutput>({
       task: "content.review",
+      userId: metering.userId,
+      brandId: metering.brandId,
       jsonMode: true,
       messages: [
         {

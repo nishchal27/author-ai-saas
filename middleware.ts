@@ -8,6 +8,9 @@ const isPublicRoute = createRouteMatcher([
   "/api/webhooks(.*)",
   "/api/cron(.*)",
   "/api/health(.*)",
+  // Inngest Cloud invokes this route without a Clerk session.
+  // Signature verification remains the responsibility of inngest/next serve().
+  "/api/inngest(.*)",
 ])
 
 export default clerkMiddleware(async (auth, request) => {

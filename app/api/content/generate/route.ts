@@ -13,6 +13,8 @@ import {
   toLegacyStrategyContext,
 } from "@/lib/brand-context/assembler"
 import { shouldRunAiReview } from "@/lib/ai/quality"
+import { toAiPublicError } from "@/lib/ai/public-error"
+import { hasAnyAiProviderKey } from "@/lib/env"
 import { NextResponse } from "next/server"
 
 export async function POST(req: Request) {
@@ -23,6 +25,15 @@ export async function POST(req: Request) {
     }
 
     const user = await ensureUserForClerkId(userId)
+
+    if (!hasAnyAiProviderKey()) {
+      const pub = toAiPublicError(new Error("not configured"))
+      return NextResponse.json(
+        { error: pub.error, code: pub.code },
+        { status: pub.status }
+      )
+    }
+
     const rateLimit = await checkAiRateLimits(user.id)
     if (rateLimit) return rateLimit
 
@@ -69,14 +80,27 @@ export async function POST(req: Request) {
       )
     }
 
-    const targetProductId =
-      productId || idea?.productId || insight?.productId || user.activeProductId
+    const requestedProductId =
+      productId || idea?.productId || insight?.productId || user.activeProductId || null
 
-    if (idea && targetProductId && idea.productId !== targetProductId) {
+    if (idea && requestedProductId && idea.productId !== requestedProductId) {
       return NextResponse.json(
         { error: "Idea/product mismatch" },
         { status: 400 }
       )
+    }
+
+    // Ownership: never attach a foreign productId to drafts or AI context.
+    let targetProductId: string | null = null
+    if (requestedProductId) {
+      const ownedProduct = await db.product.findFirst({
+        where: { id: requestedProductId, userId: user.id },
+        select: { id: true },
+      })
+      if (!ownedProduct) {
+        return NextResponse.json({ error: "Product not found" }, { status: 404 })
+      }
+      targetProductId = ownedProduct.id
     }
 
     let productContext: ProductContext | undefined
@@ -122,6 +146,7 @@ export async function POST(req: Request) {
         techStack = brandCtx.untrusted.techStack ?? null
       } catch (e) {
         console.error("Brand context assemble failed:", e)
+        return NextResponse.json({ error: "Product not found" }, { status: 404 })
       }
     }
 
@@ -166,6 +191,8 @@ export async function POST(req: Request) {
         techStack,
         brandVoice,
         userTier,
+        userId: user.id,
+        brandId: targetProductId || undefined,
       },
       typeOverride: typeOverride || idea?.format,
       platformOverride: platformOverride || idea?.platform,
@@ -224,7 +251,8 @@ export async function POST(req: Request) {
           contentData.content,
           platform || "linkedin",
           intentForDecision,
-          reason ?? context ?? undefined
+          reason ?? context ?? undefined,
+          { userId: user.id, brandId: targetProductId || undefined }
         )
         evaluationScore = evaluation.score
         evaluationNote = evaluation.note || null
@@ -264,10 +292,10 @@ export async function POST(req: Request) {
     })
   } catch (error) {
     console.error("Error generating content:", error)
-    const message = error instanceof Error ? error.message : "Failed to generate content"
+    const pub = toAiPublicError(error)
     return NextResponse.json(
-      { error: "Failed to generate content", details: message },
-      { status: 500 }
+      { error: pub.error, code: pub.code },
+      { status: pub.status }
     )
   }
 }

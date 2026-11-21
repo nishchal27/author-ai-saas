@@ -41,7 +41,13 @@ export function MobileNav({ onAddProduct }: { onAddProduct?: () => void }) {
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Working on
           </p>
-          <ProductSwitcher compact={false} onAddProduct={onAddProduct} />
+          <ProductSwitcher
+            compact={false}
+            onAddProduct={() => {
+              setOpen(false)
+              onAddProduct?.()
+            }}
+          />
         </div>
         <NavLinks orientation="vertical" onNavigate={() => setOpen(false)} />
         <div className="mt-8 border-t pt-4">

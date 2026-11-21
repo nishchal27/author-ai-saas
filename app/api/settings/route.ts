@@ -3,6 +3,10 @@ import { db } from "@/lib/db"
 import { apiError } from "@/lib/api-error"
 import { ensureUserForClerkId } from "@/lib/users"
 import { parseBody, settingsPatchSchema } from "@/lib/validation"
+import {
+  toPublicIntegration,
+  toPublicSettingsUser,
+} from "@/lib/settings/public"
 import { NextResponse } from "next/server"
 
 export async function GET() {
@@ -14,9 +18,29 @@ export async function GET() {
 
     const user = await ensureUserForClerkId(userId)
 
-    return NextResponse.json({ user })
+    const integrations = await db.integration.findMany({
+      where: { userId: user.id },
+      select: {
+        id: true,
+        type: true,
+        provider: true,
+        isActive: true,
+        config: true,
+        updatedAt: true,
+        // Explicitly omit accessToken / refreshToken
+      },
+      orderBy: { updatedAt: "desc" },
+    })
+
+    return NextResponse.json({
+      user: toPublicSettingsUser(user),
+      integrations: integrations.map(toPublicIntegration),
+    })
   } catch (error) {
-    return apiError(error, { context: "settings GET", publicMessage: "Failed to fetch settings" })
+    return apiError(error, {
+      context: "settings GET",
+      publicMessage: "Failed to fetch settings",
+    })
   }
 }
 
@@ -33,7 +57,7 @@ export async function PATCH(req: Request) {
     const parsed = parseBody(raw, settingsPatchSchema)
     if ("error" in parsed) return parsed.error
 
-    // Subscription tier is server-controlled only (scripts/billing). Never accept from client.
+    // Subscription tier is server-controlled only. Never accept from client.
     const { brandVoice, founderBio } = parsed.data
 
     const updated = await db.user.update({
@@ -42,10 +66,22 @@ export async function PATCH(req: Request) {
         ...(brandVoice !== undefined ? { brandVoice } : {}),
         ...(founderBio !== undefined ? { founderBio } : {}),
       },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        tier: true,
+        brandVoice: true,
+        founderBio: true,
+        activeProductId: true,
+      },
     })
 
-    return NextResponse.json({ user: updated })
+    return NextResponse.json({ user: toPublicSettingsUser(updated) })
   } catch (error) {
-    return apiError(error, { context: "settings PATCH", publicMessage: "Failed to update settings" })
+    return apiError(error, {
+      context: "settings PATCH",
+      publicMessage: "Failed to update settings",
+    })
   }
 }

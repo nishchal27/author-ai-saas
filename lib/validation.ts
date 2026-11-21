@@ -10,8 +10,20 @@ export const productCreateSchema = z.object({
   audienceDetail: z.string().max(2000).optional(),
   stage: z.string().min(1).max(50),
   salesMotion: z.string().min(1).max(100),
+  businessModel: z.string().max(100).optional().nullable(),
   description: z.string().max(5000).optional(),
-  website: z.string().url().max(500).optional().or(z.literal("")),
+  website: z
+    .union([
+      z.literal(""),
+      z
+        .string()
+        .url({
+          message:
+            "Enter a full URL including https:// (e.g. https://example.com)",
+        })
+        .max(500),
+    ])
+    .optional(),
   competitors: z.string().max(2000).optional(),
 })
 
@@ -160,9 +172,35 @@ export const activeProductSchema = z
 /** Draft PATCH */
 export const draftPatchSchema = z
   .object({
+    title: z.string().min(1).max(500).optional(),
     content: z.string().min(1).max(50000).optional(),
     status: z
       .enum(["draft", "approved", "scheduled", "published", "rejected"])
+      .optional(),
+  })
+  .strict()
+
+/** Save a manual brand proposal (proposed only — not trusted until approved) */
+export const brandManualProposeSchema = z
+  .object({
+    mode: z.literal("manual"),
+    summary: z.string().min(1).max(5000),
+    facts: z
+      .array(
+        z.object({
+          id: z.string().min(1).max(80).optional(),
+          text: z.string().min(1).max(500),
+          category: z.string().max(100).optional(),
+        })
+      )
+      .min(1)
+      .max(40),
+    voice: z
+      .object({
+        tone: z.string().min(1).max(500),
+        examples: z.array(z.string().max(300)).max(8).optional(),
+        personality: z.string().max(500).optional(),
+      })
       .optional(),
   })
   .strict()
@@ -291,13 +329,20 @@ export function parseBody<T>(
   if (result.success) {
     return { data: result.data }
   }
-  const first = result.error.flatten().fieldErrors
-  const message = Object.entries(first)
+  const flat = result.error.flatten()
+  const fieldMessage = Object.entries(flat.fieldErrors)
     .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
-    .join("; ") || "Validation failed"
+    .join("; ")
+  const formMessage = flat.formErrors.join("; ")
+  const message =
+    [fieldMessage, formMessage].filter(Boolean).join("; ") || "Validation failed"
   return {
     error: NextResponse.json(
-      { error: "Validation failed", details: message },
+      {
+        error: "Validation failed",
+        code: "VALIDATION_ERROR",
+        details: message,
+      },
       { status: 400 }
     ),
   }

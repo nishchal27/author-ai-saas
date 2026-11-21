@@ -1,107 +1,117 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Target, Compass, CheckCircle2 } from "lucide-react"
+import { ArrowRight, Target, CheckCircle2 } from "lucide-react"
 import Link from "next/link"
+import { PRODUCT_NAME } from "@/lib/constants"
 
 export function Hero() {
   return (
-    <section className="relative pt-32 pb-20 lg:pt-40 lg:pb-32 overflow-hidden">
-      {/* Background - More subtle, professional */}
-      <div className="absolute inset-0 bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-background" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(59,130,246,0.05),transparent_40%)]" />
+    <section className="relative overflow-hidden pt-28 pb-16 lg:pt-36 lg:pb-24">
+      <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-white" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.06),transparent_55%)]" />
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="max-w-4xl mx-auto text-center animate-fade-in">
-          {/* Badge - Calm, not hype */}
-          <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 mb-8 animate-slide-up">
-            <Target className="h-4 w-4 text-slate-600 dark:text-slate-400" />
-            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
-              Product-aware marketing intelligence
-            </span>
-          </div>
-
-          {/* Headline - Decision-focused */}
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-slide-up text-foreground">
-            Know exactly what marketing
-            <br />
-            <span className="text-primary">your product needs</span>
-          </h1>
-
-          {/* Subheadline - Value proposition */}
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed animate-slide-up">
-            Tell us about your product. We'll tell you which platforms to use, 
-            what content to create, and what to skip entirely.
-            <span className="block mt-2 font-medium text-foreground">
-              Less guessing. More clarity.
-            </span>
+      <div className="container relative z-10 mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 shadow-sm">
+            <Target className="h-4 w-4 text-primary" />
+            {PRODUCT_NAME} — brand-aware marketing workspace
           </p>
 
-          {/* CTA Buttons - Simple, direct */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 animate-scale-in">
-            <Button size="lg" asChild className="group w-full sm:w-auto">
+          <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-[3.25rem] lg:leading-[1.1]">
+            Teach {PRODUCT_NAME} about your brand.
+            <span className="mt-2 block text-primary">
+              Decide what to create. Stay consistent.
+            </span>
+          </h1>
+
+          <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
+            A practical workspace for small businesses and solo founders to capture
+            brand identity, organize marketing direction, turn ideas into drafts,
+            and plan the week — without pretending to auto-publish for you.
+          </p>
+
+          <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Button size="lg" asChild className="w-full sm:w-auto">
               <Link href="/sign-up">
-                Add Your Product
-                <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                Start free
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              asChild
-              className="w-full sm:w-auto"
-            >
-              <Link href="/sign-in">Sign In</Link>
+            <Button size="lg" variant="outline" asChild className="w-full sm:w-auto">
+              <Link href="#features">Explore features</Link>
             </Button>
           </div>
 
-          {/* Trust Indicators - Focus on outcomes */}
-          <div className="flex flex-wrap items-center justify-center gap-8 text-sm text-muted-foreground animate-fade-in">
-            <div className="flex items-center space-x-2">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <span>Know what TO do</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <span>Know what NOT to do</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Compass className="h-4 w-4 text-primary" />
-              <span>Strategy explained, not magic</span>
-            </div>
-          </div>
+          <ul className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              Brand Studio
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              Ideas & drafts
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              Weekly planner
+            </li>
+          </ul>
         </div>
 
-        {/* Hero Visual - Strategy Preview */}
-        <div className="mt-16 max-w-4xl mx-auto animate-slide-up">
-          <div className="relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-xl">
-            {/* Simulated Strategy Output */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
-                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                Strategy generated for "Acme Analytics"
-              </div>
-              
-              <div className="p-4 rounded-lg bg-primary/5 border border-primary/10">
-                <p className="text-lg font-medium">
-                  "Because you are building a B2B SaaS for developers, we recommend focusing on 
-                  <span className="text-primary"> Twitter/X</span> and 
-                  <span className="text-primary"> GitHub</span> with technical, low-hype content. 
-                  <span className="text-red-600"> Skip LinkedIn sales posts</span> — developers trust competence, not persuasion."
+        {/* Product UI preview */}
+        <div className="mx-auto mt-14 max-w-5xl">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg shadow-slate-200/60">
+            <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+              <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+              <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+              <span className="ml-3 text-xs text-muted-foreground">
+                Overview · next action for your brand
+              </span>
+            </div>
+            <div className="grid gap-0 md:grid-cols-[200px_1fr]">
+              <aside className="hidden border-r border-slate-100 bg-slate-50/80 p-4 md:block">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Workspace
                 </p>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Twitter/X
+                <ul className="space-y-2 text-sm text-slate-600">
+                  <li className="rounded-md bg-white px-2 py-1.5 font-medium text-primary shadow-sm">
+                    Overview
+                  </li>
+                  <li className="px-2 py-1.5">Brand Studio</li>
+                  <li className="px-2 py-1.5">Marketing Intelligence</li>
+                  <li className="px-2 py-1.5">Content Studio</li>
+                  <li className="px-2 py-1.5">Content Planner</li>
+                </ul>
+              </aside>
+              <div className="space-y-4 p-5 sm:p-6">
+                <div className="rounded-lg border border-primary/15 bg-primary/5 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-primary">
+                    Next action
+                  </p>
+                  <p className="mt-1 font-semibold text-foreground">
+                    Complete your brand profile in Brand Studio
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Teach {PRODUCT_NAME} who you are, who you serve, and how you sound —
+                    then approve facts before generating ideas.
+                  </p>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm">
-                  <CheckCircle2 className="h-4 w-4" />
-                  GitHub
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm line-through">
-                  LinkedIn sales
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {[
+                    { title: "Brand", status: "Incomplete" },
+                    { title: "Pillars", status: "Not started" },
+                    { title: "This week", status: "0 planned" },
+                  ].map((card) => (
+                    <div
+                      key={card.title}
+                      className="rounded-lg border border-slate-150 border-slate-200 p-3"
+                    >
+                      <p className="text-xs text-muted-foreground">{card.title}</p>
+                      <p className="mt-1 text-sm font-medium">{card.status}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

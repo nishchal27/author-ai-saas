@@ -40,3 +40,19 @@ export const BRAND_SCOPED_QUERY_ROOTS = [
   "activities",
   "insights",
 ] as const
+
+type QueryClientLike = {
+  removeQueries: (filters: { queryKey: readonly string[] }) => void
+  invalidateQueries: (filters: { queryKey: readonly unknown[] }) => unknown
+}
+
+/**
+ * Drop brand-scoped caches so a previous brand cannot flash after create/switch,
+ * then refresh the products list (includes activeProductId).
+ */
+export function clearBrandScopedQueries(queryClient: QueryClientLike) {
+  for (const root of BRAND_SCOPED_QUERY_ROOTS) {
+    queryClient.removeQueries({ queryKey: [root] })
+  }
+  queryClient.invalidateQueries({ queryKey: queryKeys.products })
+}

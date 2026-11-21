@@ -3,13 +3,23 @@ import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
 import { ensureUserForClerkId } from "@/lib/users"
 import { checkAiRateLimits } from "@/lib/rate-limit"
-import { parseBody, brandApproveSchema } from "@/lib/validation"
-import { summarizeBrand, approveBrandSummary } from "@/lib/brand/summarize"
+import {
+  parseBody,
+  brandApproveSchema,
+  brandManualProposeSchema,
+} from "@/lib/validation"
+import {
+  summarizeBrand,
+  approveBrandSummary,
+  saveManualBrandProposal,
+} from "@/lib/brand/summarize"
 import {
   assembleBrandContext,
   parseProposedFactsPayload,
 } from "@/lib/brand-context/assembler"
 import { apiError } from "@/lib/api-error"
+import { toAiPublicError } from "@/lib/ai/public-error"
+import { hasAnyAiProviderKey } from "@/lib/env"
 
 async function loadOwnedProduct(userId: string, productId: string) {
   return db.product.findFirst({
@@ -17,6 +27,7 @@ async function loadOwnedProduct(userId: string, productId: string) {
     select: {
       id: true,
       name: true,
+      description: true,
       brandProfileStatus: true,
       brandSummaryProposed: true,
       brandSummaryApproved: true,
@@ -63,15 +74,26 @@ export async function GET(
         userSuppliedFacts: proposedPayload.userSuppliedFacts || [],
         fullProposal: proposedPayload.proposal || null,
         promptVersion: proposedPayload.promptVersion,
-        voice: product.brandVoiceJson
-          ? JSON.parse(product.brandVoiceJson)
-          : null,
+        // Proposed voice from proposal payload only — never treat brandVoiceJson as proposed.
+        voice:
+          proposedPayload.voice ||
+          (proposedPayload.proposal &&
+          typeof proposedPayload.proposal === "object" &&
+          proposedPayload.proposal !== null &&
+          "brandVoice" in proposedPayload.proposal
+            ? (proposedPayload.proposal as { brandVoice?: unknown }).brandVoice
+            : null) ||
+          null,
       },
       approved: {
         summary: product.brandSummaryApproved,
         facts: product.brandFactsApproved
           ? JSON.parse(product.brandFactsApproved)
           : [],
+        voice:
+          product.brandProfileStatus === "approved" && product.brandVoiceJson
+            ? JSON.parse(product.brandVoiceJson)
+            : null,
         approvedAt: product.brandApprovedAt,
       },
       context: {
@@ -79,6 +101,7 @@ export async function GET(
         missingFields: context.meta.missingFields,
         profileStatus: context.meta.profileStatus,
       },
+      aiConfigured: hasAnyAiProviderKey(),
     })
   } catch (error) {
     return apiError(error, {
@@ -88,9 +111,9 @@ export async function GET(
   }
 }
 
-/** POST — run brand.summarize (proposal only; does not approve) */
+/** POST — AI summarize (no body) OR manual proposal ({ mode: "manual", ... }) */
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -105,6 +128,37 @@ export async function POST(
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 
+    const contentType = request.headers.get("content-type") || ""
+    const raw =
+      contentType.includes("application/json")
+        ? await request.json().catch(() => null)
+        : null
+
+    if (raw && typeof raw === "object" && (raw as { mode?: string }).mode === "manual") {
+      const parsed = parseBody(raw, brandManualProposeSchema)
+      if ("error" in parsed) return parsed.error
+      const result = await saveManualBrandProposal({
+        userId: user.id,
+        productId: id,
+        summary: parsed.data.summary,
+        facts: parsed.data.facts,
+        voice: parsed.data.voice,
+      })
+      return NextResponse.json({
+        message:
+          "Manual brand proposal saved. Review and approve before it becomes trusted context.",
+        ...result,
+      })
+    }
+
+    if (!hasAnyAiProviderKey()) {
+      const pub = toAiPublicError(new Error("not configured"))
+      return NextResponse.json(
+        { error: pub.error, code: pub.code },
+        { status: pub.status }
+      )
+    }
+
     const rateLimit = await checkAiRateLimits(user.id)
     if (rateLimit) return rateLimit
 
@@ -115,6 +169,13 @@ export async function POST(
       ...result,
     })
   } catch (error) {
+    const pub = toAiPublicError(error)
+    if (pub.code !== "AI_FAILED" || !hasAnyAiProviderKey()) {
+      return NextResponse.json(
+        { error: pub.error, code: pub.code },
+        { status: pub.status }
+      )
+    }
     return apiError(error, {
       context: "brand POST summarize",
       publicMessage: "Failed to summarize brand",
@@ -151,7 +212,7 @@ export async function PATCH(
         id: f.id,
         text: f.text,
         category: f.category,
-        source: "ai_approved" as const,
+        source: f.source === "user" ? ("user" as const) : ("ai_approved" as const),
       })),
       voice: parsed.data.voice,
     })

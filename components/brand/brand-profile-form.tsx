@@ -16,19 +16,14 @@ import {
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { queryKeys } from "@/lib/query-keys"
-
-const PRODUCT_TYPES = [
-  "saas",
-  "course",
-  "coaching",
-  "physical",
-  "event",
-  "api",
-  "service",
-  "ngo",
-]
-const STAGES = ["idea", "building", "launched", "growing", "mature"]
-const SALES = ["self_serve", "demo", "creator_led", "enterprise", "impulse"]
+import {
+  PRODUCT_TYPES,
+  INDUSTRIES,
+  BUSINESS_MODELS,
+  SALES_APPROACHES,
+  PRODUCT_STAGES,
+  normalizeIndustry,
+} from "@/lib/product-options"
 
 export type BrandProduct = {
   id: string
@@ -39,9 +34,17 @@ export type BrandProduct = {
   audienceDetail?: string | null
   stage: string
   salesMotion: string
+  businessModel?: string | null
   description?: string | null
   website?: string | null
   competitors?: string | null
+}
+
+function industrySelectValue(raw: string) {
+  const normalized = normalizeIndustry(raw)
+  if (INDUSTRIES.some((i) => i.value === normalized)) return normalized
+  // Preserve unknown legacy free-text by falling back to Other
+  return INDUSTRIES.some((i) => i.value === raw) ? raw : "other"
 }
 
 export function BrandProfileForm({
@@ -54,11 +57,12 @@ export function BrandProfileForm({
   const [form, setForm] = useState({
     name: product.name || "",
     type: product.type || "saas",
-    industry: product.industry || "",
+    industry: industrySelectValue(product.industry || ""),
     audience: product.audience || "",
     audienceDetail: product.audienceDetail || "",
     stage: product.stage || "building",
     salesMotion: product.salesMotion || "self_serve",
+    businessModel: product.businessModel || "",
     description: product.description || "",
     website: product.website || "",
     competitors: product.competitors || "",
@@ -68,11 +72,12 @@ export function BrandProfileForm({
     setForm({
       name: product.name || "",
       type: product.type || "saas",
-      industry: product.industry || "",
+      industry: industrySelectValue(product.industry || ""),
       audience: product.audience || "",
       audienceDetail: product.audienceDetail || "",
       stage: product.stage || "building",
       salesMotion: product.salesMotion || "self_serve",
+      businessModel: product.businessModel || "",
       description: product.description || "",
       website: product.website || "",
       competitors: product.competitors || "",
@@ -86,12 +91,17 @@ export function BrandProfileForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          businessModel: form.businessModel || null,
           website: form.website || "",
         }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || "Failed to save profile")
+        throw new Error(
+          err.details
+            ? `${err.error || "Validation failed"}: ${err.details}`
+            : err.error || "Failed to save profile"
+        )
       }
       return res.json()
     },
@@ -137,15 +147,15 @@ export function BrandProfileForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="type">Business type</Label>
+          <Label htmlFor="type">Product / business type</Label>
           <Select value={form.type} onValueChange={(v) => set("type", v)}>
             <SelectTrigger id="type">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {PRODUCT_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t}
+                <SelectItem key={t.value} value={t.value}>
+                  {t.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -153,12 +163,64 @@ export function BrandProfileForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="industry">Industry</Label>
-          <Input
-            id="industry"
+          <Select
             value={form.industry}
-            onChange={(e) => set("industry", e.target.value)}
-            required
-          />
+            onValueChange={(v) => set("industry", v)}
+          >
+            <SelectTrigger id="industry">
+              <SelectValue placeholder="Select industry" />
+            </SelectTrigger>
+            <SelectContent>
+              {INDUSTRIES.map((i) => (
+                <SelectItem key={i.value} value={i.value}>
+                  {i.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Category you operate in — not the same as sales channel or business model.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="businessModel">
+            Business model{" "}
+            <span className="font-normal text-muted-foreground">(optional)</span>
+          </Label>
+          <Select
+            value={form.businessModel || "none"}
+            onValueChange={(v) => set("businessModel", v === "none" ? "" : v)}
+          >
+            <SelectTrigger id="businessModel">
+              <SelectValue placeholder="Optional" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Not specified</SelectItem>
+              {BUSINESS_MODELS.map((m) => (
+                <SelectItem key={m.value} value={m.value}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="salesMotion">Sales approach</Label>
+          <Select
+            value={form.salesMotion}
+            onValueChange={(v) => set("salesMotion", v)}
+          >
+            <SelectTrigger id="salesMotion">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SALES_APPROACHES.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label htmlFor="audience">Audience</Label>
@@ -170,40 +232,25 @@ export function BrandProfileForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="stage">Stage</Label>
+          <Label htmlFor="stage">Business stage</Label>
           <Select value={form.stage} onValueChange={(v) => set("stage", v)}>
             <SelectTrigger id="stage">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {STAGES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="salesMotion">Sales motion</Label>
-          <Select
-            value={form.salesMotion}
-            onValueChange={(v) => set("salesMotion", v)}
-          >
-            <SelectTrigger id="salesMotion">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SALES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
+              {PRODUCT_STAGES.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="audienceDetail">Who exactly?</Label>
+          <Label htmlFor="audienceDetail">
+            Who exactly?{" "}
+            <span className="font-normal text-muted-foreground">(optional)</span>
+          </Label>
           <Textarea
             id="audienceDetail"
             value={form.audienceDetail}
@@ -213,27 +260,34 @@ export function BrandProfileForm({
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="description">Description</Label>
+          <Label htmlFor="description">
+            Description{" "}
+            <span className="font-normal text-muted-foreground">(optional)</span>
+          </Label>
           <Textarea
             id="description"
             value={form.description}
             onChange={(e) => set("description", e.target.value)}
-            rows={4}
-            placeholder="What you sell, who it’s for, and what makes it different"
+            rows={3}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="website">Website</Label>
+          <Label htmlFor="website">
+            Website{" "}
+            <span className="font-normal text-muted-foreground">(optional)</span>
+          </Label>
           <Input
             id="website"
-            type="url"
             value={form.website}
             onChange={(e) => set("website", e.target.value)}
             placeholder="https://"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="competitors">Competitors (optional)</Label>
+          <Label htmlFor="competitors">
+            Competitors{" "}
+            <span className="font-normal text-muted-foreground">(optional)</span>
+          </Label>
           <Input
             id="competitors"
             value={form.competitors}

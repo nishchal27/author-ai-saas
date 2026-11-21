@@ -5,14 +5,18 @@ import { getTaskDefinition } from "@/lib/ai/registry"
 import type {
   AiNormalizedResult,
   AiProviderId,
+  AiTaskId,
   ExecuteAiRequest,
   ExecuteAiResult,
   TaskDefinition,
 } from "@/lib/ai/types"
 import { AiOrchestrationError, AiProviderError } from "@/lib/ai/types"
+import { DAILY_AI_REQUEST_CAP } from "@/lib/rate-limit"
 import {
+  AiDailyCapExceededError,
   newAiRequestId,
   recordUsageAttempt,
+  reserveAiRequestSlot,
   type UsageAttemptKind,
 } from "@/lib/usage/meter"
 
@@ -220,6 +224,17 @@ export async function executeAi<T = unknown>(
     taskId: def.id,
   }
 
+  // Durable daily-cap reservation before any provider attempt (closes check-then-act races).
+  if (req.userId) {
+    await reserveAiRequestSlot({
+      userId: req.userId,
+      requestId,
+      taskId: def.id,
+      productId: req.brandId,
+      dailyCap: DAILY_AI_REQUEST_CAP,
+    })
+  }
+
   try {
     result = await runOnce(def, def.provider, def.model, req, ctx, "primary", 0)
   } catch (primaryError) {
@@ -409,40 +424,45 @@ export async function executeAi<T = unknown>(
 }
 
 /**
- * Compatibility helper matching legacy callAI(system, user, model, maxTokens).
- * Prefer executeAi with a task id for new code.
+ * Compatibility helper for legacy callAI(system, user, model, maxTokens).
+ * Must supply metering context — never bypasses executeAi / usage accounting.
+ * Model/maxTokens from callers are ignored; the task registry is authoritative.
  */
 export async function completeText(opts: {
   system: string
   user: string
   model: string
   maxTokens: number
+  /** Required: every provider attempt must be attributable. */
+  userId: string
+  task: AiTaskId
+  brandId?: string
   provider?: AiProviderId
   timeoutMs?: number
   temperature?: number
   signal?: AbortSignal
+  skipAiReview?: boolean
+  jsonMode?: boolean
 }): Promise<string> {
-  const provider =
-    opts.provider ??
-    (process.env.ANTHROPIC_API_KEY
-      ? "anthropic"
-      : process.env.OPENAI_API_KEY
-        ? "openai"
-        : process.env.OPENROUTER_API_KEY
-          ? "openrouter"
-          : "anthropic")
+  void opts.model
+  void opts.maxTokens
+  void opts.provider
+  void opts.timeoutMs
 
-  const adapter = requireConfiguredProvider(provider)
-  const result = await adapter.generateText({
+  const result = await executeAi({
+    task: opts.task,
+    userId: opts.userId,
+    brandId: opts.brandId,
     messages: [
       { role: "system", content: opts.system },
       { role: "user", content: opts.user },
     ],
-    model: opts.model,
-    maxOutputTokens: opts.maxTokens,
     temperature: opts.temperature,
-    timeoutMs: opts.timeoutMs ?? 60_000,
     signal: opts.signal,
+    skipAiReview: opts.skipAiReview ?? true,
+    jsonMode: opts.jsonMode ?? true,
   })
   return result.text
 }
+
+export { AiDailyCapExceededError }

@@ -1,30 +1,32 @@
 import { db } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
+import {
+  isCronBearerAuthorized,
+  unauthorizedCronResponse,
+} from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 /**
- * Lightweight Prisma connectivity check (SELECT 1).
- * - Available in development.
- * - In production, requires Authorization: Bearer <CRON_SECRET>.
+ * Database readiness check (SELECT 1).
+ *
+ * - Development: open (no secret) so local setup is easy.
+ * - Production: requires Authorization: Bearer <CRON_SECRET>.
+ *   Missing/empty CRON_SECRET fails closed.
+ *
  * Never returns connection strings, hosts, or stack traces.
  */
 function isAuthorized(request: NextRequest): boolean {
   if (process.env.NODE_ENV !== "production") {
     return true
   }
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) {
-    return false
-  }
-  const header = request.headers.get("authorization")
-  return header === `Bearer ${cronSecret}`
+  return isCronBearerAuthorized(request.headers.get("authorization"))
 }
 
 export async function GET(request: NextRequest) {
   if (!isAuthorized(request)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 })
+    return unauthorizedCronResponse()
   }
 
   const started = Date.now()

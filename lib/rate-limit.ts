@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
-import { db } from "@/lib/db"
 import { countDistinctRequests, startOfUtcDay } from "@/lib/usage/meter"
 
 /**
  * Short-window rate limiter + durable daily soft cap via AiUsageEvent.
  *
  * - In-memory window is per Node process (not shared across serverless instances).
+ *   Burst abuse across instances is still bounded by the durable daily cap +
+ *   reserveAiRequestSlot advisory lock inside executeAi.
  * - Daily cap counts distinct AI requestIds (user tasks), not retry attempts.
  */
 
@@ -42,7 +43,7 @@ export function checkRateLimit(userId: string): NextResponse | null {
   if (process.env.NODE_ENV === "production" && !warnedMultiInstance) {
     warnedMultiInstance = true
     console.warn(
-      "[rate-limit] In-memory window is per instance; daily Prisma cap also applies. Prefer a shared store for multi-instance production."
+      "[rate-limit] In-memory window is per instance; daily Prisma cap + advisory lock also apply. Prefer a shared store for multi-instance burst limiting."
     )
   }
 
@@ -62,9 +63,9 @@ export function checkRateLimit(userId: string): NextResponse | null {
 }
 
 /**
- * Durable soft daily cap for AI user-tasks.
- * Prefer AiUsageEvent distinct requestIds; fall back to draft+insight counts
- * so pre-Phase-3 traffic still contributes until usage events dominate.
+ * Durable soft daily cap for AI user-tasks (distinct requestIds).
+ * All provider paths must meter via executeAi so this remains authoritative.
+ * Final enforcement for concurrent races happens in reserveAiRequestSlot.
  */
 export async function checkDailyAiCap(userId: string): Promise<NextResponse | null> {
   const since = startOfUtcDay()
@@ -77,20 +78,6 @@ export async function checkDailyAiCap(userId: string): Promise<NextResponse | nu
     )
   }
 
-  // Compatibility soft floor while older activity may lack usage events
-  if (usageRequests === 0) {
-    const [drafts, insights] = await Promise.all([
-      db.contentDraft.count({ where: { userId, createdAt: { gte: since } } }),
-      db.insight.count({ where: { userId, createdAt: { gte: since } } }),
-    ])
-    if (drafts + insights >= DAILY_AI_REQUEST_CAP) {
-      return NextResponse.json(
-        { error: "Daily AI usage limit reached. Try again tomorrow." },
-        { status: 429 }
-      )
-    }
-  }
-
   return null
 }
 
@@ -99,4 +86,9 @@ export async function checkAiRateLimits(userId: string): Promise<NextResponse | 
   const window = checkRateLimit(userId)
   if (window) return window
   return checkDailyAiCap(userId)
+}
+
+/** True when a response is a 429 from our rate-limit helpers. */
+export function isAiRateLimitResponse(res: NextResponse | null): boolean {
+  return res?.status === 429
 }

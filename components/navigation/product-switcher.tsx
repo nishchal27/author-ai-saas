@@ -11,10 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  BRAND_SCOPED_QUERY_ROOTS,
-  queryKeys,
-} from "@/lib/query-keys"
+import { clearBrandScopedQueries, queryKeys } from "@/lib/query-keys"
 
 interface Product {
   id: string
@@ -35,13 +32,6 @@ async function fetchProducts() {
   return res.json()
 }
 
-function invalidateBrandScopedQueries(queryClient: ReturnType<typeof useQueryClient>) {
-  queryClient.invalidateQueries({ queryKey: queryKeys.products })
-  for (const root of BRAND_SCOPED_QUERY_ROOTS) {
-    queryClient.invalidateQueries({ queryKey: [root] })
-  }
-}
-
 export function ProductSwitcher({
   compact = false,
   onAddProduct,
@@ -60,22 +50,39 @@ export function ProductSwitcher({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ activeProductId: productId }),
       })
-      if (!res.ok) throw new Error("Failed to switch product")
-      return res.json()
-    },
-    onSuccess: () => {
-      // Drop brand-scoped cache immediately so previous brand data cannot flash
-      for (const root of BRAND_SCOPED_QUERY_ROOTS) {
-        queryClient.removeQueries({ queryKey: [root] })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || "Failed to switch product")
       }
-      invalidateBrandScopedQueries(queryClient)
+      return res.json() as Promise<{ activeProductId: string }>
+    },
+    onSuccess: (result) => {
+      clearBrandScopedQueries(queryClient)
+      queryClient.setQueryData(
+        queryKeys.products,
+        (old: { products?: Product[]; activeProductId?: string | null } | undefined) => {
+          if (!old) return old
+          return {
+            ...old,
+            activeProductId: result.activeProductId,
+          }
+        }
+      )
     },
   })
 
   const products: Product[] = data?.products || []
-  const activeProductId = data?.activeProductId
-  const activeProduct =
-    products.find((p) => p.id === activeProductId) || products[0]
+  const activeProductId = data?.activeProductId as string | null | undefined
+  const activeFromServer = activeProductId
+    ? products.find((p) => p.id === activeProductId)
+    : undefined
+  const activeProduct = activeFromServer || products[0]
+  const selectValue =
+    activeFromServer?.id ||
+    (activeProductId && products.some((p) => p.id === activeProductId)
+      ? activeProductId
+      : activeProduct?.id) ||
+    ""
 
   if (isLoading) {
     return <div className="h-10 w-40 animate-pulse rounded-md bg-muted" />
@@ -106,11 +113,11 @@ export function ProductSwitcher({
 
   return (
     <Select
-      value={activeProduct?.id || ""}
+      value={selectValue}
       onValueChange={(value) => {
         if (value === "add-new") {
           onAddProduct?.()
-        } else {
+        } else if (value !== selectValue) {
           switchProduct.mutate(value)
         }
       }}

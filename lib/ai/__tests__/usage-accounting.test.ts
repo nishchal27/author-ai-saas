@@ -29,6 +29,7 @@ vi.mock("@/lib/usage/meter", async () => {
   return {
     ...actual,
     recordUsageAttempt: (...args: unknown[]) => recordUsageAttempt(...args),
+    reserveAiRequestSlot: vi.fn().mockResolvedValue(undefined),
   }
 })
 

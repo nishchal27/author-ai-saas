@@ -1,21 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk"
 import { hasAnyAiProviderKey } from "@/lib/env"
-import { completeText, MODEL_CATALOG, resolveTaskModel } from "@/lib/ai"
+import { executeAi, resolveTaskModel, type AiTaskId } from "@/lib/ai"
 
-function preferAnthropic(): boolean {
-  return !!process.env.ANTHROPIC_API_KEY
-}
-
-function preferOpenAI(): boolean {
-  return !process.env.ANTHROPIC_API_KEY && !!process.env.OPENAI_API_KEY
-}
-
-function preferOpenRouter(): boolean {
-  return (
-    !process.env.ANTHROPIC_API_KEY &&
-    !process.env.OPENAI_API_KEY &&
-    !!process.env.OPENROUTER_API_KEY
-  )
+/** Required on every legacy AI call so usage cannot bypass metering. */
+export type AiMeteringContext = {
+  userId: string
+  brandId?: string
+  task: AiTaskId
 }
 
 /** Lazy Anthropic accessor kept for rare direct callers; prefer executeAi / callAI. */
@@ -106,44 +97,37 @@ function getModelForContent(
 }
 
 /**
- * Unified text generation via central AI orchestration adapters.
- * Prefer `executeAi({ task })` for new code.
+ * Unified text generation via central executeAi (metered).
+ * Prefer `executeAi({ task })` for new code. Model/maxTokens are ignored —
+ * the task registry is authoritative.
  */
 export async function callAI(
   systemPrompt: string,
   userPrompt: string,
   model: string,
-  maxTokens: number
+  maxTokens: number,
+  metering: AiMeteringContext
 ): Promise<string> {
   if (!hasAnyAiProviderKey() && !process.env.OPENROUTER_API_KEY) {
     throw new Error("ANTHROPIC_API_KEY, OPENAI_API_KEY, or OPENROUTER_API_KEY must be set")
   }
+  void model
+  void maxTokens
 
-  const provider = preferAnthropic()
-    ? "anthropic"
-    : preferOpenAI()
-      ? "openai"
-      : preferOpenRouter()
-        ? "openrouter"
-        : "anthropic"
-
-  // If a legacy Anthropic snapshot id is passed, remap to current catalog defaults.
-  const remappedModel =
-    model.includes("claude-3-5-opus") || model.includes("claude-3-opus")
-      ? MODEL_CATALOG.anthropic.premium()
-      : model.includes("claude-3-5-sonnet") || model.includes("claude-3-sonnet")
-        ? MODEL_CATALOG.anthropic.standard()
-        : model.includes("claude-3-5-haiku") || model.includes("claude-3-haiku")
-          ? MODEL_CATALOG.anthropic.fast()
-          : model
-
-  return completeText({
-    system: systemPrompt,
-    user: userPrompt,
-    model: remappedModel,
-    maxTokens,
-    provider,
+  const result = await executeAi({
+    task: metering.task,
+    userId: metering.userId,
+    brandId: metering.brandId,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    jsonMode: true,
+    // Callers that need review (e.g. content.generate blog) run it separately
+    // or set forceAiReview on executeAi directly.
+    skipAiReview: true,
   })
+  return result.text
 }
 
 /**
@@ -161,9 +145,10 @@ export async function extractInsight(
       whyMatters?: string
     }
   },
-  brandVoice?: string,
+  brandVoice: string | undefined,
   userTier: "standard" | "premium" = "standard",
-  productContext?: ProductContext
+  productContext: ProductContext | undefined,
+  metering: AiMeteringContext
 ): Promise<InsightExtraction> {
   const productGuidance = productContext ? `
 PRODUCT CONTEXT (use this to frame insights appropriately):
@@ -214,8 +199,11 @@ ${brandVoice ? `Brand voice preferences: ${brandVoice}` : ""}
 Extract the core insight in JSON format.`
 
   const model = getModelForTier(userTier)
-  
-  const responseText = await callAI(systemPrompt, userPrompt, model, 2000)
+
+  const responseText = await callAI(systemPrompt, userPrompt, model, 2000, {
+    ...metering,
+    task: "insight.extract",
+  })
 
   // Extract JSON from response
   const jsonMatch = responseText.match(/\{[\s\S]*\}/)
@@ -240,6 +228,8 @@ export interface ContentGenerationOptions {
   /** Build in public: founder bio and product tech stack for richer context */
   founderBio?: string
   techStack?: string
+  /** Metering — required for provider calls */
+  metering: AiMeteringContext
 }
 
 /**
@@ -405,9 +395,22 @@ ${brandVoice ? `\nBRAND VOICE OVERRIDE: ${brandVoice}` : ""}
 
 Generate the content in JSON format. Remember to follow the tone and anti-patterns from the marketing strategy. Include whyThisContent: one short sentence explaining why this content is suggested.`
 
+  if (!options?.metering?.userId) {
+    throw new Error("AI metering context (userId) is required for content generation")
+  }
+
   const model = getModelForContent(type, userTier)
-  
-  const responseText = await callAI(systemPrompt, userPrompt, model, 4000)
+  const task =
+    options.metering.task === "content.regenerate" ||
+    options.metering.task === "content.repurpose"
+      ? options.metering.task
+      : "content.generate"
+
+  const responseText = await callAI(systemPrompt, userPrompt, model, 4000, {
+    userId: options.metering.userId,
+    brandId: options.metering.brandId,
+    task,
+  })
 
   const jsonMatch = responseText.match(/\{[\s\S]*\}/)
   if (!jsonMatch) {

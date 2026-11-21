@@ -4,6 +4,8 @@ import { ensureUserForClerkId } from "@/lib/users"
 import { checkAiRateLimits } from "@/lib/rate-limit"
 import { parseBody, insightExtractSchema } from "@/lib/validation"
 import { extractInsight, ProductContext } from "@/lib/claude"
+import { toAiPublicError } from "@/lib/ai/public-error"
+import { hasAnyAiProviderKey } from "@/lib/env"
 import { NextResponse } from "next/server"
 
 export async function POST(req: Request) {
@@ -14,6 +16,15 @@ export async function POST(req: Request) {
     }
 
     const user = await ensureUserForClerkId(userId)
+
+    if (!hasAnyAiProviderKey()) {
+      const pub = toAiPublicError(new Error("not configured"))
+      return NextResponse.json(
+        { error: pub.error, code: pub.code },
+        { status: pub.status }
+      )
+    }
+
     const rateLimit = await checkAiRateLimits(user.id)
     if (rateLimit) return rateLimit
 
@@ -22,7 +33,6 @@ export async function POST(req: Request) {
     if ("error" in parsed) return parsed.error
     const { activityId, humanInput, productId } = parsed.data
 
-    // Fetch activity
     const activity = await db.activity.findFirst({
       where: {
         id: activityId,
@@ -34,35 +44,39 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Activity not found" }, { status: 404 })
     }
 
-    // Get product context
-    // Use provided productId, or activity's productId, or user's active product
-    const targetProductId = productId || activity.productId || user.activeProductId
-    
-    let productContext: ProductContext | undefined
+    const requestedProductId =
+      productId || activity.productId || user.activeProductId || null
 
-    if (targetProductId) {
+    let productContext: ProductContext | undefined
+    let ownedProductId: string | null = null
+
+    if (requestedProductId) {
       const product = await db.product.findFirst({
-        where: { id: targetProductId, userId: user.id },
+        where: { id: requestedProductId, userId: user.id },
       })
 
-      if (product) {
-        productContext = {
-          name: product.name,
-          type: product.type,
-          industry: product.industry,
-          audience: product.audience,
-          stage: product.stage,
-          description: product.description || undefined,
-          audienceDetail: product.audienceDetail ?? undefined,
-        }
+      if (!product) {
+        return NextResponse.json({ error: "Product not found" }, { status: 404 })
+      }
+
+      ownedProductId = product.id
+      productContext = {
+        name: product.name,
+        type: product.type,
+        industry: product.industry,
+        audience: product.audience,
+        stage: product.stage,
+        description: product.description || undefined,
+        audienceDetail: product.audienceDetail ?? undefined,
       }
     }
 
     const bv = (user as { brandVoice?: string | null }).brandVoice
     const brandVoice = bv ? JSON.parse(bv).tone : undefined
-    const userTier = (user.tier === "premium" ? "premium" : "standard") as "standard" | "premium"
+    const userTier = (user.tier === "premium" ? "premium" : "standard") as
+      | "standard"
+      | "premium"
 
-    // Extract insight with product context
     const insightData = await extractInsight(
       {
         title: activity.title,
@@ -72,14 +86,18 @@ export async function POST(req: Request) {
       },
       brandVoice,
       userTier,
-      productContext
+      productContext,
+      {
+        userId: user.id,
+        brandId: ownedProductId || undefined,
+        task: "insight.extract",
+      }
     )
 
-    // Save insight with product link
     const insight = await db.insight.create({
       data: {
         userId: user.id,
-        productId: targetProductId || null,
+        productId: ownedProductId,
         activityId: activity.id,
         coreProblem: insightData.coreProblem,
         solution: insightData.solution,
@@ -91,24 +109,24 @@ export async function POST(req: Request) {
       },
     })
 
-    // Mark activity as processed and link to product if not already
     await db.activity.update({
       where: { id: activity.id },
-      data: { 
+      data: {
         processed: true,
-        productId: activity.productId || targetProductId || null,
+        productId: activity.productId || ownedProductId || null,
       },
     })
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       insight,
       productApplied: !!productContext,
     })
   } catch (error) {
     console.error("Error extracting insight:", error)
+    const pub = toAiPublicError(error)
     return NextResponse.json(
-      { error: "Failed to extract insight" },
-      { status: 500 }
+      { error: pub.error, code: pub.code },
+      { status: pub.status }
     )
   }
 }

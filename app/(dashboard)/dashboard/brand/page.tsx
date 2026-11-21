@@ -133,7 +133,11 @@ export default function BrandStudioPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {productLoading || !product ? (
+          {productError ? (
+            <p className="text-sm text-muted-foreground">
+              Brand profile unavailable until the brand loads successfully.
+            </p>
+          ) : productLoading || !product ? (
             <Skeleton className="h-48 w-full" />
           ) : (
             <BrandProfileForm product={product} />
@@ -167,17 +171,21 @@ export default function BrandStudioPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">AI proposal & approval</CardTitle>
+          <CardTitle className="text-lg">Brand summary & approval</CardTitle>
           <CardDescription>
-            Generate a proposal, edit freely, then approve explicitly. Approved context is
-            never replaced by a new proposal until you approve again.
+            Write a summary manually or generate with AI, edit freely, then approve
+            explicitly. Approved context is never replaced until you approve again.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {brandLoading || !brand ? (
             <Skeleton className="h-48 w-full" />
           ) : (
-            <BrandProposalPanel productId={productId} brand={brand} />
+            <BrandProposalPanel
+              productId={productId}
+              brand={brand}
+              profileDescription={product?.description}
+            />
           )}
         </CardContent>
       </Card>

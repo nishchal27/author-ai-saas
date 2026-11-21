@@ -1,25 +1,25 @@
 import { NextResponse } from "next/server"
 import { inngest } from "@/lib/inngest"
+import {
+  isCronBearerAuthorized,
+  unauthorizedCronResponse,
+} from "@/lib/cron-auth"
 
 /**
- * Legacy cron job endpoint - now triggers Inngest function
- * This endpoint is kept for backward compatibility
+ * Legacy cron job endpoint — triggers Inngest function manually.
  *
- * Vercel Cron config (vercel.json): crons[].path = "/api/cron/publish",
- * schedule = every 5 minutes (cron: 5 * * * *).
+ * Auth: Authorization: Bearer <CRON_SECRET>
+ * Missing/empty CRON_SECRET fails closed (never matches Bearer undefined).
  *
- * Note: Inngest handles scheduling automatically via cron functions.
- * This endpoint can trigger Inngest manually if needed.
+ * Prefer Inngest's built-in cron for scheduled publishing in production.
+ * This endpoint remains for ops / compatibility triggers.
  */
 export async function GET(req: Request) {
   try {
-    // Verify cron secret (set in environment)
-    const authHeader = req.headers.get("authorization")
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (!isCronBearerAuthorized(req.headers.get("authorization"))) {
+      return unauthorizedCronResponse()
     }
 
-    // Trigger Inngest function manually (though it runs automatically via cron)
     await inngest.send({
       name: "inngest/function.invoked",
       data: {
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
   } catch (error) {
     console.error("Cron publish error:", error)
     return NextResponse.json(
-      { error: "Failed to trigger Inngest function" },
+      { error: "Failed to trigger scheduled publish check" },
       { status: 500 }
     )
   }

@@ -119,6 +119,11 @@ export async function POST(req: Request) {
         reason: draft.generationReason || undefined,
         context: draft.audienceContext || undefined,
         feedback: feedback?.trim() || undefined,
+        metering: {
+          userId: user.id,
+          brandId: product?.id,
+          task: "content.regenerate",
+        },
       }
     )
 

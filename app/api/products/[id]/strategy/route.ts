@@ -114,19 +114,23 @@ export async function POST(
       console.error("Brand context assemble failed:", e)
     }
 
-    // Generate new strategy
-    const strategyOutput = await generateMarketingStrategy({
-      name: product.name,
-      type: product.type as ProductType,
-      industry: product.industry,
-      audience: product.audience,
-      audienceDetail: product.audienceDetail ?? undefined,
-      stage: product.stage as ProductStage,
-      salesMotion: product.salesMotion as SalesMotion,
-      description,
-      website: product.website || undefined,
-      competitors: product.competitors || undefined,
-    }, user.tier)
+    // Generate new strategy (metered via executeAi)
+    const strategyOutput = await generateMarketingStrategy(
+      {
+        name: product.name,
+        type: product.type as ProductType,
+        industry: product.industry,
+        audience: product.audience,
+        audienceDetail: product.audienceDetail ?? undefined,
+        stage: product.stage as ProductStage,
+        salesMotion: product.salesMotion as SalesMotion,
+        description,
+        website: product.website || undefined,
+        competitors: product.competitors || undefined,
+      },
+      user.tier,
+      { userId: user.id, productId: product.id }
+    )
 
     // Update or create strategy
     const strategy = await prisma.marketingStrategy.upsert({
