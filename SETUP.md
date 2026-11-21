@@ -159,11 +159,151 @@ Open [http://localhost:3000](http://localhost:3000).
 Requires `ENCRYPTION_KEY` (or `ALLOW_PLAINTEXT_TOKENS=1` in development only).  
 Tokens are stored encrypted in production. Publishing remains out of MVP marketing promise for V2 beta.
 
+## Staging deployment (Vercel + Supabase)
+
+Use a **separate** staging stack from production: separate Vercel project (or Preview env), separate Supabase project/branch, and a **separate Clerk application** (or isolated staging instance). Do not reuse production secrets.
+
+### Vercel project settings
+
+| Setting | Value |
+|---------|--------|
+| Framework | Next.js (auto-detected) |
+| Node.js | **≥ 18.17** (matches `package.json` `engines`) |
+| Install command | `npm install` (default) |
+| Build command | `npm run build` → runs `prisma generate && next build` |
+| Output | Next.js default (no custom `output: export`) |
+| Root directory | repository root |
+| `vercel.json` | **Not present** — none required for Next.js. **No Vercel Cron jobs are defined in-repo.** |
+
+Do **not** invent a Vercel Cron schedule. Scheduled publishing, when enabled, is owned by **Inngest** (`*/5 * * * *` inside `lib/inngest.ts` for `check-scheduled-content`). The HTTP route `GET /api/cron/publish` is a **manual ops trigger** protected by `Authorization: Bearer <CRON_SECRET>`; it is not wired to a Vercel cron config in this repository.
+
+### Required vs optional environment variables (staging)
+
+Set these in the Vercel project → Settings → Environment Variables for the **Staging / Preview / Production** target you use for staging. Mark secrets as Sensitive.
+
+**Required for staging runtime**
+
+| Variable | Notes |
+|----------|--------|
+| `DATABASE_URL` | Supabase **pooled** URL (often port `6543`) with `pgbouncer=true` when required |
+| `DIRECT_URL` | Supabase **session/direct** URL (often port `5432`) for migrations |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Staging Clerk app publishable key |
+| `CLERK_SECRET_KEY` | Staging Clerk app secret key |
+| `NEXT_PUBLIC_APP_URL` | Staging URL, e.g. `https://varabhi-staging.vercel.app` |
+| `ENCRYPTION_KEY` | ≥ 16 characters; required at runtime (`NODE_ENV=production`) |
+| `CRON_SECRET` | Non-empty; Bearer secret for `/api/cron/*` and prod-mode `/api/health/db` |
+
+**Optional (feature-gated — omit for a manual-workflow-only staging)**
+
+| Variable | Notes |
+|----------|--------|
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `OPENROUTER_API_KEY` | AI features only; **not** required for build or manual brand → ideas → drafts → planner |
+| `OPENROUTER_APP_TITLE` / `AI_MODEL_*` | Optional model overrides |
+| `INNGEST_SIGNING_KEY` / `INNGEST_EVENT_KEY` | Only if enabling Inngest background jobs |
+
+**Never set in staging/production**
+
+| Variable | Notes |
+|----------|--------|
+| `ALLOW_PLAINTEXT_TOKENS` | Dev-only plaintext token storage |
+| `POPULATE_*` | Seed scripts only |
+
+Build vs runtime: core DB + Clerk vars must be available to the Vercel **build**. `ENCRYPTION_KEY` / `CRON_SECRET` are enforced at **runtime** (see `lib/env.ts`); still set them before serving traffic.
+
+### Supabase connection configuration
+
+1. Create a staging Supabase project (or isolated branch).
+2. **Settings → Database → Connection string**:
+   - **Transaction pooler** → `DATABASE_URL` (Prisma Client at runtime). Prefer including `pgbouncer=true` when using the pooler.
+   - **Session / direct** → `DIRECT_URL` (Prisma migrate / introspection). Prefer IPv4-reachable session pooler if `db.<ref>.supabase.co` is IPv6-only from your network.
+3. Confirm both URLs point at the **same** staging database.
+4. Run migrations with the staging `DIRECT_URL` (see below) **before** relying on the app against that DB.
+
+### Clerk staging configuration
+
+1. Create a **separate** Clerk application for staging (do not share production keys).
+2. Copy staging `pk_` / `sk_` into Vercel env.
+3. Clerk Dashboard → URLs:
+   - Application / home: staging `NEXT_PUBLIC_APP_URL`
+   - Sign-in / Sign-up: `https://<staging-host>/sign-in` and `/sign-up`
+   - After sign-in / sign-up: `/dashboard`
+4. Add the staging host to allowed origins / redirect allowlists.
+5. Prefer Clerk **development** instance for early staging, or a dedicated production-type staging app if you need prod-like auth behavior — keep it isolated from real users.
+
+### Migration procedure (staging)
+
+**Forward (required after schema changes, and once on first staging DB):**
+
+```bash
+# From a trusted machine or CI, with staging DIRECT_URL (+ DATABASE_URL) in env:
+npx prisma migrate deploy
+# or: npm run db:migrate:deploy
+```
+
+Then verify:
+
+```bash
+npx prisma migrate status
+npx prisma validate
+```
+
+**Do not** use `prisma db push` or `migrate reset` against staging/shared data.
+
+**Rollback considerations**
+
+- Prisma does not auto-generate down migrations. Rollback = restore a Supabase backup / point-in-time recovery, **or** apply a carefully reviewed new forward migration that reverses the change.
+- Keep migration history in git; never rewrite already-applied migration files.
+- Order of operations for risky deploys: backup → `migrate deploy` → deploy app revision that expects the new schema (or deploy app first only when migrations are backward-compatible).
+
+### Inngest (optional on staging)
+
+- App **boots and serves** the core product without Inngest keys.
+- `/api/inngest` is always present and Clerk-public; without `INNGEST_SIGNING_KEY`, do not expose it as a trusted automation endpoint in Inngest Cloud.
+- If you enable Inngest later: create a staging Inngest app, set signing/event keys, sync to `https://<staging-host>/api/inngest`, and ensure the Vercel plan allows `maxDuration` ≥ 60s for that route.
+
+### Post-deploy smoke checks
+
+1. `GET https://<staging-host>/api/health` → `{ "ok": true, "status": "alive" }` (no auth)
+2. `GET https://<staging-host>/api/health/db` with `Authorization: Bearer <CRON_SECRET>` → `{ "ok": true, ... }`
+3. `GET https://<staging-host>/api/cron/publish` **without** Bearer → `401`
+4. Signed-out `/dashboard` → redirect to Clerk sign-in
+5. Sign in → complete manual brand → pillars → ideas → draft → planner (no AI keys required)
+
+### Exact manual steps (checklist)
+
+**Supabase**
+
+1. Create staging project  
+2. Copy pooler URL → `DATABASE_URL`  
+3. Copy session/direct URL → `DIRECT_URL`  
+4. From local/CI with those vars: `npx prisma migrate deploy`  
+5. Confirm `migrate status` is up to date  
+
+**Clerk**
+
+1. Create staging Clerk app  
+2. Configure sign-in/up URLs and after-auth `/dashboard` for the staging host  
+3. Copy keys into Vercel  
+
+**Vercel**
+
+1. Import the Git repository; Framework = Next.js  
+2. Set Node ≥ 18.17  
+3. Build command = `npm run build` (do not remove `prisma generate`)  
+4. Add all **required** env vars (and optional AI/Inngest only if testing those features)  
+5. Deploy  
+6. Set `NEXT_PUBLIC_APP_URL` to the deployed URL if it changed; redeploy if needed  
+7. Run smoke checks above  
+
+**Do not** add a Vercel Cron entry unless you intentionally wire one to `/api/cron/publish` with the Bearer secret — that schedule is **not** defined in this repo today.
+
+---
+
 ## Production Deployment
 
 ### Recommended platforms
 
-Vercel, Railway, or Render with a managed Postgres provider.
+Vercel, Railway, or Render with a managed Postgres provider. Prefer the same checklist as staging, with isolated production credentials.
 
 ### Checklist (before / during deploy)
 
@@ -173,9 +313,9 @@ Vercel, Railway, or Render with a managed Postgres provider.
 4. Deploy the Next.js build (`npm run build` → `npm start`, or your host’s build command)
 5. Confirm `GET /api/health` returns `{ ok: true }`
 6. Confirm `GET /api/health/db` with Bearer cron secret returns `{ ok: true }`
-7. Sync / verify the Inngest app points at `https://<your-domain>/api/inngest`
+7. Sync / verify the Inngest app points at `https://<your-domain>/api/inngest` **only if** Inngest is enabled
 
-This guide does **not** claim the app is production-ready merely because env vars exist — complete Phase 5.1 journey fixes and a verified production build before a broad beta.
+This guide does **not** claim the app is production-ready merely because env vars exist — complete live browser verification on staging before a broad beta.
 
 ### Environment variables for production (summary)
 
@@ -217,9 +357,13 @@ If you see `PrismaClientInitializationError` / “Tenant or user not found”:
 
 ### Build
 
-- Node 18+
+- Node 18+ (Clerk requires ≥ 18.17)
 - `npm install`, clear `.next` if needed
-- Ensure required env vars are present for production builds that import `lib/db`
+- Core vars (`DATABASE_URL`, `DIRECT_URL`, Clerk keys) must be present for `npm run build`
+- `ENCRYPTION_KEY` and `CRON_SECRET` are enforced at **production runtime**, not during the Next.js build collect phase (so local/CI builds can succeed before deploy secrets are injected)
+- On Vercel: set production env vars in the project dashboard; build command should remain `npm run build` (runs `prisma generate && next build`)
+- After deploy, run **`npx prisma migrate deploy`** against the production migration URL (`DIRECT_URL`) before serving traffic
+- `/api/inngest` sets `maxDuration = 60` for serverless compatibility; ensure your Vercel plan allows ≥ 60s functions if using Inngest there
 
 ## npm scripts (database)
 

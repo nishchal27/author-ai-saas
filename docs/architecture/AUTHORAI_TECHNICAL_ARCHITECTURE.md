@@ -426,9 +426,8 @@ Do **not** log raw prompts/responses by default. Opt-in debug only in non-produc
 
 Verified at documentation time:
 
-- `next@14.2.35`, `react@18`, `@clerk/nextjs`, `@prisma/client` / `prisma`, `zod`, `@tanstack/react-query`, `zustand` (unused), `@anthropic-ai/sdk`, `openai`, `inngest`, `tsx` for scripts.
-
-No OpenRouter package or env key is present in code today.
+- `next@14.2.35`, `react@18`, `@clerk/nextjs`, `@prisma/client` / `prisma`, `zod`, `@tanstack/react-query`, `zustand`, `@anthropic-ai/sdk`, `openai`, `inngest`, `tsx` for scripts.
+- Optional AI providers via env: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY` (OpenAI-compatible OpenRouter adapter in `lib/ai/providers/openrouter.ts`).
 
 ## Appendix B — Alignment with product direction
 

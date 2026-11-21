@@ -23,6 +23,7 @@ export default defineConfig({
       "lib/strategy/**/*.test.ts",
       "lib/rate-limit/**/*.test.ts",
       "lib/settings/**/*.test.ts",
+      "lib/env/**/*.test.ts",
     ],
     clearMocks: true,
   },

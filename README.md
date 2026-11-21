@@ -102,7 +102,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser. Sign in wit
 ### Docs & ops
 
 - Environment contract: [`.env.example`](./.env.example)
-- Full setup / migrate / health / Inngest: [`SETUP.md`](./SETUP.md)
+- Full setup / migrate / health / Inngest / **staging deploy**: [`SETUP.md`](./SETUP.md)
 - Product & architecture: [`docs/README.md`](./docs/README.md)
 - Liveness: `GET /api/health` · DB readiness: `GET /api/health/db`
 

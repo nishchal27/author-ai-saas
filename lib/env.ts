@@ -19,9 +19,19 @@ export type EnvIssue = {
 }
 
 /**
+ * True while `next build` is collecting page data.
+ * Next sets NODE_ENV=production during builds, but production-only secrets
+ * must be enforced at runtime — not fail the compile when absent locally.
+ */
+export function isNextProductionBuildPhase(): boolean {
+  return process.env.NEXT_PHASE === "phase-production-build"
+}
+
+/**
  * Returns missing/invalid required env names without values.
  * Development: core DB + Clerk only.
- * Production: also ENCRYPTION_KEY and CRON_SECRET.
+ * Production runtime: also ENCRYPTION_KEY and CRON_SECRET.
+ * Production *build* phase: core only (Vercel injects secrets at runtime).
  */
 export function getEnvIssues(): EnvIssue[] {
   const issues: EnvIssue[] = []
@@ -31,7 +41,10 @@ export function getEnvIssues(): EnvIssue[] {
     }
   }
 
-  if (process.env.NODE_ENV === "production") {
+  const enforceProductionSecrets =
+    process.env.NODE_ENV === "production" && !isNextProductionBuildPhase()
+
+  if (enforceProductionSecrets) {
     for (const name of REQUIRED_PRODUCTION) {
       const value = process.env[name]
       if (!value?.trim()) {
