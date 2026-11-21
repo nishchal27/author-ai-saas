@@ -1,110 +1,88 @@
 "use client"
 
-import { ArrowRight, Target, GitBranch, Sparkles, FileText, Calendar } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
+import {
+  Building2,
+  Compass,
+  Lightbulb,
+  FileText,
+  CalendarDays,
+} from "lucide-react"
 
 const steps = [
   {
-    number: "01",
-    icon: Target,
-    title: "Add Your Product & Get Strategy",
+    number: "1",
+    icon: Building2,
+    title: "Create your brand",
     description:
-      "Tell us about your product — type, audience, stage. We generate a custom marketing strategy that tells you which platforms to use and what to skip.",
-    color: "from-primary to-primary/80",
+      "Add your business once — type, industry, audience, and voice. Start in Brand Studio.",
   },
   {
-    number: "02",
-    icon: GitBranch,
-    title: "Track Your Activity",
+    number: "2",
+    icon: Compass,
+    title: "Build marketing direction",
     description:
-      "Connect GitHub or add activities manually. Every commit, PR, and update is captured and linked to your product.",
-    color: "from-blue-500 to-blue-600",
+      "Define or refine content pillars so ideas stay aligned with what you want to be known for.",
   },
   {
-    number: "03",
-    icon: Sparkles,
-    title: "Extract Insights",
+    number: "3",
+    icon: Lightbulb,
+    title: "Discover content ideas",
     description:
-      "AI analyzes your work with your product context. Insights are framed for your specific audience and industry.",
-    color: "from-purple-500 to-purple-600",
+      "Capture ideas manually or generate them when AI is available — then save what you’ll use.",
   },
   {
-    number: "04",
+    number: "4",
     icon: FileText,
-    title: "Generate Strategy-Guided Content",
+    title: "Create drafts",
     description:
-      "Create posts, blogs, and threads that follow your product's strategy. Content matches your tone, platforms, and avoids anti-patterns.",
-    color: "from-green-500 to-green-600",
+      "Turn ideas into platform-specific drafts in Content Studio. Edit until they sound like you.",
   },
   {
-    number: "05",
-    icon: Calendar,
-    title: "Review & Publish",
+    number: "5",
+    icon: CalendarDays,
+    title: "Plan your week",
     description:
-      "Review with strategy alignment warnings, edit, and approve. Schedule or publish immediately. Automated publishing handles the rest.",
-    color: "from-orange-500 to-orange-600",
+      "Put ideas and drafts on a simple weekly plan and track status as you go.",
   },
 ]
 
 export function HowItWorks() {
   return (
-    <section id="how-it-works" className="py-20 lg:py-32">
+    <section id="how-it-works" className="border-y border-slate-100 bg-slate-50 py-20 lg:py-28">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16 animate-fade-in">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
-            How It Works
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            How it works
           </h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Simple, transparent, and founder-friendly. No marketing jargon,
-            just real value.
+          <p className="mt-4 text-lg text-muted-foreground">
+            A clear weekly loop: brand → direction → ideas → drafts → plan.
           </p>
         </div>
 
-        <div className="max-w-5xl mx-auto">
-          <div className="space-y-8">
-            {steps.map((step, index) => {
-              const Icon = step.icon
-              return (
-                <div
-                  key={step.number}
-                  className="flex flex-col md:flex-row items-start gap-6 animate-slide-up"
-                  style={{ animationDelay: `${index * 0.15}s` }}
-                >
-                  {/* Step Number & Icon */}
-                  <div className="flex-shrink-0">
-                    <Card className="border-2 border-primary/20">
-                      <CardContent className="p-6">
-                        <div
-                          className={`w-16 h-16 rounded-xl bg-gradient-to-br ${step.color} flex items-center justify-center mb-3`}
-                        >
-                          <Icon className="h-8 w-8 text-white" />
-                        </div>
-                        <div className="text-3xl font-bold text-primary">
-                          {step.number}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 pt-2">
-                    <h3 className="text-2xl font-bold mb-3">{step.title}</h3>
-                    <p className="text-lg text-muted-foreground">
-                      {step.description}
-                    </p>
-                  </div>
-
-                  {/* Arrow (hidden on last item) */}
-                  {index < steps.length - 1 && (
-                    <div className="hidden md:flex items-center justify-center flex-shrink-0 pt-8">
-                      <ArrowRight className="h-6 w-6 text-muted-foreground rotate-90 md:rotate-0" />
-                    </div>
-                  )}
+        <ol className="mx-auto mt-14 max-w-3xl space-y-6">
+          {steps.map((step) => {
+            const Icon = step.icon
+            return (
+              <li
+                key={step.number}
+                className="flex gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:gap-5"
+              >
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Icon className="h-5 w-5" />
                 </div>
-              )
-            })}
-          </div>
-        </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                    Step {step.number}
+                  </p>
+                  <h3 className="mt-1 text-lg font-semibold">{step.title}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                    {step.description}
+                  </p>
+                </div>
+              </li>
+            )
+          })}
+        </ol>
       </div>
     </section>
   )

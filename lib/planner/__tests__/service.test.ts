@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import {
-  addPlanItem,
-  PlannerDomainError,
-  weekStartUtc,
-} from "@/lib/planner/service"
+import { weekStartUtc } from "@/lib/planner/dates"
+import { addPlanItem, PlannerDomainError } from "@/lib/planner/service"
 
 const productFindFirst = vi.fn()
 const planFindFirst = vi.fn()

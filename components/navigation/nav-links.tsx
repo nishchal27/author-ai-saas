@@ -1,84 +1,105 @@
 "use client"
 
-import { usePathname, useRouter } from "next/navigation"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import {
+  LayoutDashboard,
+  Building2,
+  Target,
+  FileText,
+  CalendarCheck,
+  Settings,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import Link from "next/link"
-import { FileText, Settings, LayoutDashboard, Target, Calendar, TrendingUp, ChevronDown } from "lucide-react"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 
-const navItems = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "Home" },
-  { href: "/dashboard/strategy", icon: Target, label: "Strategy" },
-  { href: "/dashboard/content", icon: FileText, label: "Content" },
-  { href: "/dashboard/settings", icon: Settings, label: "Settings" },
-]
+export const PRIMARY_NAV = [
+  {
+    href: "/dashboard",
+    icon: LayoutDashboard,
+    label: "Overview",
+    shortLabel: "Overview",
+    exact: true,
+  },
+  {
+    href: "/dashboard/brand",
+    icon: Building2,
+    label: "Brand Studio",
+    shortLabel: "Brand",
+  },
+  {
+    href: "/dashboard/strategy",
+    icon: Target,
+    label: "Marketing Intelligence",
+    shortLabel: "Strategy",
+  },
+  {
+    href: "/dashboard/content",
+    icon: FileText,
+    label: "Content Studio",
+    shortLabel: "Content",
+  },
+  {
+    href: "/dashboard/plan",
+    icon: CalendarCheck,
+    label: "Content Planner",
+    shortLabel: "Plan",
+  },
+  {
+    href: "/dashboard/settings",
+    icon: Settings,
+    label: "Settings",
+    shortLabel: "Settings",
+  },
+] as const
 
-const moreItems = [
-  { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
-  { href: "/dashboard/analytics", label: "Analytics", icon: TrendingUp },
-]
+function isActivePath(pathname: string, href: string, exact?: boolean) {
+  if (exact) return pathname === href
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
 
-export function NavLinks() {
+export function NavLinks({
+  orientation = "horizontal",
+  onNavigate,
+}: {
+  orientation?: "horizontal" | "vertical"
+  onNavigate?: () => void
+}) {
   const pathname = usePathname()
-  const router = useRouter()
-  const isMoreActive = moreItems.some((item) => pathname.startsWith(item.href))
 
   return (
-    <div className="flex items-center gap-1">
-      {navItems.map((item) => {
-        const isActive =
-          item.href === pathname ||
-          (item.href !== "/dashboard" && pathname.startsWith(item.href))
-
+    <nav
+      className={cn(
+        orientation === "horizontal"
+          ? "hidden items-center gap-0.5 lg:flex"
+          : "flex flex-col gap-1"
+      )}
+      aria-label="Primary"
+    >
+      {PRIMARY_NAV.map((item) => {
+        const active = isActivePath(pathname, item.href, "exact" in item ? item.exact : false)
         return (
           <Button
             key={item.href}
-            variant={isActive ? "secondary" : "ghost"}
+            variant={active ? "secondary" : "ghost"}
             asChild
             className={cn(
-              "justify-start",
-              isActive && "bg-secondary font-medium"
+              "justify-start px-2.5",
+              active && "bg-secondary font-medium"
             )}
           >
-            <Link href={item.href}>
-              <item.icon className="mr-2 h-4 w-4" />
-              {item.label}
+            <Link href={item.href} onClick={onNavigate} title={item.label}>
+              <item.icon className="mr-2 h-4 w-4 shrink-0" />
+              <span className={orientation === "vertical" ? "inline" : "hidden xl:inline"}>
+                {orientation === "vertical" ? item.label : item.shortLabel}
+              </span>
+              {orientation === "horizontal" && (
+                <span className="xl:hidden sr-only">{item.label}</span>
+              )}
             </Link>
           </Button>
         )
       })}
-      <Select
-        onValueChange={(value) => {
-          if (value) router.push(value)
-        }}
-      >
-        <SelectTrigger
-          className={cn(
-            "w-[100px] justify-between border-0 bg-transparent shadow-none hover:bg-secondary",
-            isMoreActive && "bg-secondary font-medium"
-          )}
-        >
-          <SelectValue placeholder="More" />
-          <ChevronDown className="h-4 w-4 opacity-50" />
-        </SelectTrigger>
-        <SelectContent>
-          {moreItems.map((item) => (
-            <SelectItem key={item.href} value={item.href}>
-              <span className="flex items-center gap-2">
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </span>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    </nav>
   )
 }

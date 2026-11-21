@@ -52,7 +52,7 @@ export async function PATCH(
     const raw = await req.json().catch(() => null)
     const parsed = parseBody(raw, draftPatchSchema)
     if ("error" in parsed) return parsed.error
-    const { content, status } = parsed.data
+    const { title, content, status } = parsed.data
 
     const draft = await db.contentDraft.findFirst({
       where: {
@@ -71,6 +71,7 @@ export async function PATCH(
         userId: user.id,
       },
       data: {
+        ...(title !== undefined ? { title } : {}),
         ...(content !== undefined ? { content } : {}),
         ...(status !== undefined ? { status } : {}),
         version: draft.version + 1,

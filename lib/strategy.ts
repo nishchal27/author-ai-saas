@@ -13,8 +13,12 @@
  * 3. Output is opinionated, conservative, and explainable
  */
 
-import { callAI } from "./claude"
-import { resolveTaskModel, parseAndValidate, strategyGenerateSchema } from "@/lib/ai"
+import {
+  executeAi,
+  parseAndValidate,
+  strategyGenerateSchema,
+  type StrategyGenerateOutput,
+} from "@/lib/ai"
 
 // ============================================
 // PRODUCT PROFILE TYPES
@@ -29,6 +33,7 @@ export type ProductType =
   | "api"            // API / Infrastructure
   | "service"        // Service Business
   | "ngo"            // NGO / Non-profit
+  | "other"          // Catch-all
 
 export type AudienceType =
   | "developers"     // Technical developers
@@ -293,6 +298,24 @@ const STRATEGY_PATTERNS: Record<ProductType, Partial<MarketingStrategyOutput>> =
       { pattern: "Over-automation", reasoning: "Personal connection is everything" },
     ],
   },
+
+  other: {
+    platforms: [
+      { platform: "linkedin", priority: "primary", reasoning: "Broad professional reach as a starting point" },
+      { platform: "blog", priority: "secondary", reasoning: "Owned channel for clear positioning" },
+    ],
+    contentTypes: [
+      { type: "post", recommended: true, reasoning: "Short updates to stay visible" },
+      { type: "blog", recommended: true, reasoning: "Explain the offer in your own words" },
+    ],
+    tone: {
+      style: "Clear and specific",
+      examples: ["Here’s who we help…", "This week we…"],
+      avoid: ["Generic hype", "Copying unrelated niches"],
+    },
+    cadence: { frequency: "2 posts per week", postsPerWeek: 2, reasoning: "Sustainable while you refine positioning" },
+    proofTypes: ["Customer stories", "Concrete outcomes"],
+  },
 }
 
 // ============================================
@@ -383,21 +406,56 @@ function refineForAudience(
 // AI STRATEGY GENERATION
 // ============================================
 
+export type StrategyGenerationMetering = {
+  userId: string
+  productId?: string
+  /** When true, skip provider call and return heuristic strategy (e.g. rate-limited create). */
+  skipAi?: boolean
+}
+
 export async function generateMarketingStrategy(
   product: ProductProfile,
-  tier: string = "standard"
+  tier: string = "standard",
+  metering?: StrategyGenerationMetering
 ): Promise<MarketingStrategyOutput> {
   // Step 1: Get base pattern from heuristics
   const basePattern = STRATEGY_PATTERNS[product.type] || STRATEGY_PATTERNS.saas
   
   // Step 2: Refine based on audience
   const refinedPattern = refineForAudience(basePattern, product.audience, product.type)
-  
-  // Step 3: Use AI via central task model resolution (strategy.generate)
-  const model = resolveTaskModel("strategy.generate", {
-    premium: tier === "premium",
+
+  const heuristicFallback = (): MarketingStrategyOutput => ({
+    platforms: refinedPattern.platforms || [
+      { platform: "linkedin", priority: "primary", reasoning: "Default recommendation" },
+    ],
+    contentTypes: refinedPattern.contentTypes || [
+      { type: "post", recommended: true, reasoning: "Standard content type" },
+    ],
+    tone: refinedPattern.tone || {
+      style: "Professional and clear",
+      examples: ["Clear, value-focused content"],
+      avoid: ["Generic marketing speak"],
+    },
+    cadence: refinedPattern.cadence || {
+      frequency: "2-3 posts per week",
+      postsPerWeek: 2,
+      reasoning: "Consistent but sustainable",
+    },
+    proofTypes: refinedPattern.proofTypes || ["Case studies", "Results"],
+    antiPatterns: refinedPattern.antiPatterns || [],
+    summary: `Because you are building ${product.name}, we recommend a focused approach on LinkedIn with professional, outcome-focused content.`,
+    reasoning:
+      "Based on the product profile, these recommendations align with typical patterns for this type of product and audience.",
+    confidence: 0.6,
   })
- 
+
+  // Rate-limited / no-metering path: never call the provider.
+  if (metering?.skipAi || !metering?.userId) {
+    return heuristicFallback()
+  }
+
+  void tier
+
   const systemPrompt = `You are a strategic marketing advisor for B2B founders. 
 Your role is to provide opinionated, conservative, and explainable marketing recommendations.
 
@@ -456,13 +514,23 @@ Return ONLY valid JSON matching this structure (do NOT include visualStyle):
 }`
 
   try {
-    const responseText = await callAI(systemPrompt, userPrompt, model, 3000)
-
-    // Structured parse + Zod validation (central AI parse helpers)
-    const parsed = parseAndValidate(responseText, strategyGenerateSchema, {
+    const aiResult = await executeAi<StrategyGenerateOutput>({
       task: "strategy.generate",
-      schemaVersion: "strategy.generate.v1",
+      userId: metering.userId,
+      brandId: metering.productId,
+      jsonMode: true,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
     })
+
+    const parsed: StrategyGenerateOutput =
+      aiResult.data ??
+      parseAndValidate(aiResult.text, strategyGenerateSchema, {
+        task: "strategy.generate",
+        schemaVersion: "strategy.generate.v1",
+      })
 
     const strategy: MarketingStrategyOutput = {
       platforms: parsed.platforms.map((p) => ({
@@ -495,31 +563,7 @@ Return ONLY valid JSON matching this structure (do NOT include visualStyle):
     return strategy
   } catch (error) {
     console.error("Strategy generation error:", error)
-    
-    // Fallback to base pattern with default values
-    return {
-      platforms: refinedPattern.platforms || [
-        { platform: "linkedin", priority: "primary", reasoning: "Default recommendation" }
-      ],
-      contentTypes: refinedPattern.contentTypes || [
-        { type: "post", recommended: true, reasoning: "Standard content type" }
-      ],
-      tone: refinedPattern.tone || {
-        style: "Professional and clear",
-        examples: ["Clear, value-focused content"],
-        avoid: ["Generic marketing speak"]
-      },
-      cadence: refinedPattern.cadence || {
-        frequency: "2-3 posts per week",
-        postsPerWeek: 2,
-        reasoning: "Consistent but sustainable"
-      },
-      proofTypes: refinedPattern.proofTypes || ["Case studies", "Results"],
-      antiPatterns: refinedPattern.antiPatterns || [],
-      summary: `Because you are building ${product.name}, we recommend a focused approach on LinkedIn with professional, outcome-focused content.`,
-      reasoning: "Based on the product profile, these recommendations align with typical patterns for this type of product and audience.",
-      confidence: 0.6
-    }
+    return heuristicFallback()
   }
 }
 

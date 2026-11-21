@@ -8,6 +8,8 @@ export type UsageAttemptKind =
   | "fallback"
   | "repair"
   | "review_nested"
+  /** Durable daily-cap slot claimed before the first provider call. */
+  | "reservation"
 
 export type UsageEventStatus =
   | "success"
@@ -15,6 +17,18 @@ export type UsageEventStatus =
   | "provider_error"
   | "validation_fail"
   | "quality_fail"
+  /** Request slot reserved; does not count as a successful provider attempt. */
+  | "reserved"
+
+/** Thrown when the durable daily request cap is already reached. */
+export class AiDailyCapExceededError extends Error {
+  readonly code = "daily_cap_exceeded" as const
+
+  constructor(message = "Daily AI usage limit reached. Try again tomorrow.") {
+    super(message)
+    this.name = "AiDailyCapExceededError"
+  }
+}
 
 export type RecordUsageAttemptInput = {
   userId: string
@@ -117,6 +131,107 @@ export async function recordUsageAttempt(
   }
 }
 
+/**
+ * Claim one logical AI request against the durable daily cap before any
+ * provider call. Uses a per-user Postgres advisory lock so concurrent requests
+ * cannot both pass a check-then-act race.
+ *
+ * The reservation is a distinct AiUsageEvent (attemptKind=reservation) under
+ * the same requestId as later provider attempts — it does not invent tokens.
+ */
+export async function reserveAiRequestSlot(opts: {
+  userId: string
+  requestId: string
+  taskId: string
+  productId?: string | null
+  dailyCap: number
+}): Promise<void> {
+  const since = startOfUtcDay()
+
+  try {
+    await db.$transaction(async (tx) => {
+      // Transaction-scoped lock; released on commit/rollback. No Redis required.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${opts.userId}))`
+
+      const rows = await tx.aiUsageEvent.findMany({
+        where: {
+          userId: opts.userId,
+          createdAt: { gte: since },
+        },
+        distinct: ["requestId"],
+        select: { requestId: true },
+      })
+
+      if (rows.length >= opts.dailyCap) {
+        throw new AiDailyCapExceededError()
+      }
+
+      const reservationInput: RecordUsageAttemptInput = {
+        userId: opts.userId,
+        productId: opts.productId,
+        requestId: opts.requestId,
+        taskId: opts.taskId,
+        provider: "system",
+        model: "reservation",
+        attemptKind: "reservation",
+        attemptIndex: -1,
+        status: "reserved",
+      }
+
+      try {
+        await tx.aiUsageEvent.create({
+          data: {
+            userId: reservationInput.userId,
+            productId: reservationInput.productId || null,
+            requestId: reservationInput.requestId,
+            idempotencyKey: attemptIdempotencyKey(reservationInput),
+            taskId: reservationInput.taskId,
+            provider: reservationInput.provider,
+            model: reservationInput.model,
+            attemptKind: reservationInput.attemptKind,
+            attemptIndex: reservationInput.attemptIndex,
+            inputTokens: null,
+            outputTokens: null,
+            estimatedCostUsd: null,
+            status: reservationInput.status,
+            latencyMs: null,
+          },
+        })
+      } catch (err) {
+        const code =
+          err && typeof err === "object" && "code" in err
+            ? String((err as { code?: string }).code)
+            : ""
+        // Same requestId already reserved (safe idempotent retry).
+        if (code === "P2002") return
+        throw err
+      }
+    })
+  } catch (err) {
+    if (err instanceof AiDailyCapExceededError) throw err
+    // If advisory lock / raw SQL unavailable in a test DB, fall back to soft check.
+    console.error("[usage] reserveAiRequestSlot failed; applying soft daily check", {
+      taskId: opts.taskId,
+      message: err instanceof Error ? err.message : "unknown",
+    })
+    const soft = await countDistinctRequests(opts.userId, since)
+    if (soft >= opts.dailyCap) {
+      throw new AiDailyCapExceededError()
+    }
+    await recordUsageAttempt({
+      userId: opts.userId,
+      productId: opts.productId,
+      requestId: opts.requestId,
+      taskId: opts.taskId,
+      provider: "system",
+      model: "reservation",
+      attemptKind: "reservation",
+      attemptIndex: -1,
+      status: "reserved",
+    })
+  }
+}
+
 function startOfUtcDay(d = new Date()): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
 }
@@ -168,7 +283,12 @@ export async function aggregateSuccessfulUsage(
     },
   })
 
-  return events.reduce(
+  return events.reduce<{
+    inputTokens: number
+    outputTokens: number
+    estimatedCostUsd: number
+    successAttempts: number
+  }>(
     (acc, e) => {
       acc.inputTokens += e.inputTokens ?? 0
       acc.outputTokens += e.outputTokens ?? 0

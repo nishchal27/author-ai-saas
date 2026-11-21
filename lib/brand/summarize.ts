@@ -58,8 +58,8 @@ export async function summarizeBrand(opts: {
   }
 
   // Persist as PROPOSED only — never auto-approve.
-  // Do not write brandSuggestionsJson (reserved for suggestions.generate).
-  // Full proposal is wrapped with facts so GET can restore review fields.
+  // Do not write brandVoiceJson here: that column is trusted after approval only.
+  // Proposed voice lives inside brandFactsProposed.proposal for review UI.
   await db.product.updateMany({
     where: { id: opts.productId, userId: opts.userId },
     data: {
@@ -72,8 +72,8 @@ export async function summarizeBrand(opts: {
         facts: proposedFacts,
         userSuppliedFacts,
         proposal,
+        voice: proposal.brandVoice,
       }),
-      brandVoiceJson: JSON.stringify(proposal.brandVoice),
       brandProfileStatus: "proposed",
     },
   })
@@ -88,6 +88,51 @@ export async function summarizeBrand(opts: {
   }
 }
 
+/**
+ * Persist a user-authored proposal without AI. Does not approve.
+ * Keeps proposed vs approved distinction intact.
+ */
+export async function saveManualBrandProposal(opts: {
+  userId: string
+  productId: string
+  summary: string
+  facts: Array<{ id?: string; text: string; category?: string }>
+  voice?: { tone: string; examples?: string[]; personality?: string }
+}) {
+  const proposedFacts = opts.facts.map((f) => ({
+    id: f.id || randomUUID(),
+    text: f.text,
+    category: f.category,
+    source: "user" as const,
+  }))
+
+  const updated = await db.product.updateMany({
+    where: { id: opts.productId, userId: opts.userId },
+    data: {
+      brandSummaryProposed: opts.summary,
+      brandFactsProposed: JSON.stringify({
+        version: 1,
+        kind: "brand.manual",
+        facts: proposedFacts,
+        userSuppliedFacts: proposedFacts,
+        ...(opts.voice ? { voice: opts.voice } : {}),
+      }),
+      // Never write proposed voice into brandVoiceJson (trusted only after approve).
+      brandProfileStatus: "proposed",
+    },
+  })
+
+  if (updated.count === 0) {
+    throw new Error("Product not found")
+  }
+
+  return {
+    status: "proposed" as const,
+    summary: opts.summary,
+    facts: proposedFacts,
+  }
+}
+
 export async function approveBrandSummary(opts: {
   userId: string
   productId: string
@@ -98,19 +143,35 @@ export async function approveBrandSummary(opts: {
   const facts = opts.facts.map((f) => ({
     ...f,
     id: f.id || randomUUID(),
-    source: "ai_approved" as const,
+    // Preserve manual user facts; AI-reviewed facts stay ai_approved
+    source:
+      f.source === "user" || f.source === "ai_approved"
+        ? f.source
+        : ("ai_approved" as const),
   }))
 
-  await db.product.updateMany({
+  const updated = await db.product.updateMany({
     where: { id: opts.productId, userId: opts.userId },
     data: {
       brandSummaryApproved: opts.summary,
       brandFactsApproved: JSON.stringify(facts),
-      brandVoiceJson: opts.voice ? JSON.stringify(opts.voice) : undefined,
+      // Mirror into proposed so the review panel stays consistent after manual approve
+      brandSummaryProposed: opts.summary,
+      brandFactsProposed: JSON.stringify({
+        version: 1,
+        kind: "brand.approve",
+        facts,
+        userSuppliedFacts: facts.filter((f) => f.source === "user"),
+      }),
+      ...(opts.voice ? { brandVoiceJson: JSON.stringify(opts.voice) } : {}),
       brandApprovedAt: new Date(),
       brandProfileStatus: "approved",
     },
   })
+
+  if (updated.count === 0) {
+    throw new Error("Product not found")
+  }
 
   return { status: "approved" as const, approvedAt: new Date().toISOString() }
 }

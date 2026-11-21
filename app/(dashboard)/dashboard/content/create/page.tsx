@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -29,34 +29,48 @@ import {
   CONTENT_FORMAT_LABELS,
   getDefaultAudienceSegment,
 } from "@/lib/content-intelligence"
+import { queryKeys } from "@/lib/query-keys"
+import { Badge } from "@/components/ui/badge"
 
-async function fetchInsights() {
-  const res = await fetch("/api/insights?scope=active")
-  if (!res.ok) throw new Error("Failed to fetch insights")
+async function fetchProducts() {
+  const res = await fetch("/api/products")
+  if (!res.ok) throw new Error("Failed to fetch products")
   return res.json()
 }
 
-async function createInsight(payload: {
-  coreProblem: string
-  solution: string
-  audience: string
-  whyMatters: string
-  impact?: string
+async function fetchIdea(productId: string, ideaId: string) {
+  const res = await fetch(`/api/products/${productId}/ideas`)
+  if (!res.ok) throw new Error("Failed to load ideas")
+  const data = await res.json()
+  const idea = (data.ideas || []).find((i: { id: string }) => i.id === ideaId)
+  if (!idea) throw new Error("Idea not found for this brand")
+  return idea
+}
+
+async function generateFromIdea(payload: {
+  ideaId: string
   productId?: string
+  platform: string
+  type: string
+  intent?: string
+  audienceSegment?: string
+  persona?: string
+  reason?: string
+  context?: string
 }) {
-  const res = await fetch("/api/insights", {
+  const res = await fetch("/api/content/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   })
+  const errBody = await res.json().catch(() => ({}))
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error || "Failed to create angle")
+    throw new Error(errBody.error || errBody.details || "AI generation unavailable")
   }
-  return res.json()
+  return errBody
 }
 
-async function generateContent(payload: {
+async function generateFromInsight(payload: {
   insightId: string
   platform: string
   type: string
@@ -71,16 +85,16 @@ async function generateContent(payload: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   })
+  const errBody = await res.json().catch(() => ({}))
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error || "Failed to generate content")
+    throw new Error(errBody.error || errBody.details || "AI generation unavailable")
   }
-  return res.json()
+  return errBody
 }
 
-async function fetchProducts() {
-  const res = await fetch("/api/products")
-  if (!res.ok) throw new Error("Failed to fetch products")
+async function fetchInsights() {
+  const res = await fetch("/api/insights?scope=active")
+  if (!res.ok) throw new Error("Failed to fetch insights")
   return res.json()
 }
 
@@ -90,357 +104,356 @@ export default function ContentCreatePage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
-  const platformParam = searchParams.get("platform") || ""
+  const ideaIdParam = searchParams.get("ideaId") || ""
   const insightIdParam = searchParams.get("insightId") || ""
+  const platformParam = searchParams.get("platform") || ""
+  const typeParam = searchParams.get("type") || ""
 
-  const [step, setStep] = useState(1)
-  const [insightId, setInsightId] = useState(insightIdParam)
-  const [fromScratch, setFromScratch] = useState(false)
-  const [scratchProblem, setScratchProblem] = useState("")
-  const [scratchSolution, setScratchSolution] = useState("")
-  const [scratchAudience, setScratchAudience] = useState("")
-  const [scratchWhyMatters, setScratchWhyMatters] = useState("")
-
-  const [platform, setPlatform] = useState(platformParam && SUPPORTED_PLATFORMS.includes(platformParam as SupportedPlatform) ? platformParam : "linkedin")
-  const [postType, setPostType] = useState("post")
+  const [platform, setPlatform] = useState(
+    platformParam && SUPPORTED_PLATFORMS.includes(platformParam as SupportedPlatform)
+      ? platformParam
+      : "linkedin"
+  )
+  const [postType, setPostType] = useState(typeParam || "post")
   const [valueIntent, setValueIntent] = useState("product_trust")
   const [valueReason, setValueReason] = useState("")
-
-  const [audienceSegment, setAudienceSegment] = useState<string>("")
+  const [audienceSegment, setAudienceSegment] = useState("")
   const [persona, setPersona] = useState("founder_engineer")
   const [context, setContext] = useState("")
+  const [insightId, setInsightId] = useState(insightIdParam)
+  const [legacyStep, setLegacyStep] = useState(insightIdParam ? 2 : 1)
+
+  const { data: productsData } = useQuery({
+    queryKey: queryKeys.products,
+    queryFn: fetchProducts,
+  })
+  const products = productsData?.products ?? []
+  const activeProduct =
+    products.find((p: { id: string }) => p.id === productsData?.activeProductId) ||
+    products[0]
+  const productId = activeProduct?.id as string | undefined
+
+  const { data: idea, isLoading: ideaLoading, isError: ideaError } = useQuery({
+    queryKey: ["idea-detail", productId, ideaIdParam],
+    queryFn: () => fetchIdea(productId!, ideaIdParam),
+    enabled: Boolean(productId && ideaIdParam),
+  })
 
   const { data: insightsData } = useQuery({
     queryKey: ["insights"],
     queryFn: fetchInsights,
+    enabled: !ideaIdParam,
   })
-
-  const { data: productsData } = useQuery({
-    queryKey: ["products"],
-    queryFn: fetchProducts,
-  })
-
   const insights = insightsData?.insights ?? []
-  const products = productsData?.products ?? []
-  const activeProduct = products.find((p: any) => p.id === productsData?.activeProductId) || products[0]
 
   useEffect(() => {
     if (!activeProduct || audienceSegment) return
-    const defaultSeg = getDefaultAudienceSegment(activeProduct.audience ?? "", activeProduct.type ?? "")
-    setAudienceSegment(defaultSeg)
+    setAudienceSegment(
+      getDefaultAudienceSegment(activeProduct.audience ?? "", activeProduct.type ?? "")
+    )
   }, [activeProduct, audienceSegment])
 
   useEffect(() => {
-    if (insightIdParam) {
-      setInsightId(insightIdParam)
-      setStep(2)
-    }
-  }, [insightIdParam])
-
-  const createInsightMutation = useMutation({
-    mutationFn: createInsight,
-    onSuccess: (data) => {
-      setInsightId(data.insight.id)
-      setStep(2)
-      queryClient.invalidateQueries({ queryKey: ["insights"] })
-    },
-    onError: (e: Error) => {
-      toast({ title: "Error", description: e.message, variant: "destructive" })
-    },
-  })
+    if (idea?.platform) setPlatform(idea.platform)
+    if (idea?.format) setPostType(idea.format)
+    if (idea?.concept) setContext(idea.concept)
+    if (idea?.objective) setValueReason(idea.objective)
+  }, [idea])
 
   const generateMutation = useMutation({
-    mutationFn: generateContent,
+    mutationFn: async () => {
+      if (ideaIdParam) {
+        return generateFromIdea({
+          ideaId: ideaIdParam,
+          productId,
+          platform,
+          type: postType,
+          intent: valueIntent,
+          audienceSegment: audienceSegment || undefined,
+          persona,
+          reason: valueReason.trim() || undefined,
+          context: context.trim() || undefined,
+        })
+      }
+      if (!insightId) throw new Error("Select an idea or angle first")
+      return generateFromInsight({
+        insightId,
+        platform,
+        type: postType,
+        intent: valueIntent,
+        audienceSegment: audienceSegment || undefined,
+        persona,
+        reason: valueReason.trim() || undefined,
+        context: context.trim() || undefined,
+      })
+    },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["drafts"] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.drafts() })
+      if (productId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.ideas(productId) })
+      }
       toast({
         title: "Draft created",
-        description: "Review your draft in Content.",
+        description: "Review and edit in Content Studio.",
         variant: "success",
       })
       router.push(`/dashboard/content?platform=all&draftId=${data.draft.id}`)
     },
     onError: (e: Error) => {
-      toast({ title: "Error", description: e.message, variant: "destructive" })
+      toast({
+        title: "Couldn’t generate draft",
+        description: e.message,
+        variant: "destructive",
+      })
     },
   })
 
-  const handleStep1SelectInsight = (id: string) => {
-    setInsightId(id)
-    setStep(2)
-  }
-
-  const handleStep1FromScratch = () => {
-    if (!scratchProblem.trim() || !scratchSolution.trim() || !scratchAudience.trim() || !scratchWhyMatters.trim()) {
-      toast({ title: "Fill all fields", description: "Problem, solution, audience, and why it matters are required.", variant: "destructive" })
-      return
-    }
-    createInsightMutation.mutate({
-      coreProblem: scratchProblem.trim(),
-      solution: scratchSolution.trim(),
-      audience: scratchAudience.trim(),
-      whyMatters: scratchWhyMatters.trim(),
-      productId: activeProduct?.id,
-    })
-  }
-
-  const handleGenerate = () => {
-    if (!insightId) return
-    generateMutation.mutate({
-      insightId,
-      platform,
-      type: postType,
-      intent: valueIntent,
-      audienceSegment: audienceSegment || undefined,
-      persona,
-      reason: valueReason.trim() || undefined,
-      context: context.trim() || undefined,
-    })
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
+  // ——— Primary: idea-based create ———
+  if (ideaIdParam) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
         <Button variant="ghost" size="sm" asChild>
-          <Link href="/dashboard/content">
+          <Link href="/dashboard/content?tab=ideas">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Content
+            Back to ideas
           </Link>
         </Button>
-      </div>
 
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            Create draft from idea
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            Uses approved brand context. Insights are not required.
+          </p>
+        </div>
+
+        {ideaLoading ? (
+          <p className="text-sm text-muted-foreground">Loading idea…</p>
+        ) : ideaError || !idea ? (
+          <Card>
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">
+              Idea not found for the selected brand. Switch brands or return to ideas.
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">{idea.title}</CardTitle>
+                <CardDescription>{idea.concept}</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                <Badge variant="outline">{idea.platform}</Badge>
+                <Badge variant="outline">{idea.format}</Badge>
+                {idea.contentPillar?.name && (
+                  <Badge variant="outline">{idea.contentPillar.name}</Badge>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Generation options</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Platform</Label>
+                    <Select value={platform} onValueChange={setPlatform}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SUPPORTED_PLATFORMS.map((p) => (
+                          <SelectItem key={p} value={p}>
+                            {PLATFORM_LABELS[p]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Format</Label>
+                    <Select value={postType} onValueChange={setPostType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CONTENT_FORMATS.map((f) => (
+                          <SelectItem key={f} value={f}>
+                            {CONTENT_FORMAT_LABELS[f] || f}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Intent</Label>
+                    <Select value={valueIntent} onValueChange={setValueIntent}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CONTENT_INTENTS.map((i) => (
+                          <SelectItem key={i} value={i}>
+                            {CONTENT_INTENT_LABELS[i] || i}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Audience segment</Label>
+                    <Select value={audienceSegment} onValueChange={setAudienceSegment}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AUDIENCE_SEGMENTS.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {AUDIENCE_SEGMENT_LABELS[s] || s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Extra brief (optional)</Label>
+                  <Textarea
+                    value={context}
+                    onChange={(e) => setContext(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+                <Button
+                  size="lg"
+                  onClick={() => generateMutation.mutate()}
+                  disabled={generateMutation.isPending}
+                >
+                  {generateMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
+                  Generate draft
+                </Button>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  // ——— Legacy insight path (kept accessible, not primary) ———
+  return (
+    <div className="mx-auto max-w-2xl space-y-6">
+      <Button variant="ghost" size="sm" asChild>
+        <Link href="/dashboard/content?tab=ideas">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Prefer ideas? Open Ideas
+        </Link>
+      </Button>
       <div>
-        <h1 className="text-3xl font-bold">Create post</h1>
-        <p className="text-muted-foreground mt-1">
-          {step === 1 && "Choose an angle or write from scratch."}
-          {step === 2 && "Choose platform, type, and what value you want from this post."}
-          {step === 3 && "Optional refinements, then generate."}
+        <h1 className="text-2xl font-semibold tracking-tight">Create from angle</h1>
+        <p className="mt-1 text-muted-foreground">
+          Legacy insight path. For most work, start from a Content Idea instead.
         </p>
       </div>
 
-      {step === 1 && (
+      {legacyStep === 1 && (
         <Card>
           <CardHeader>
-            <CardTitle>Angle</CardTitle>
-            <CardDescription>Pick an existing angle or write from scratch.</CardDescription>
+            <CardTitle>Choose an angle</CardTitle>
+            <CardDescription>Or go back and generate ideas for this brand.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {!fromScratch ? (
-              <>
-                <div className="space-y-2">
-                  <Label>Existing angles</Label>
-                  <div className="grid gap-2 max-h-60 overflow-y-auto">
-                    {insights.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No angles yet. Write from scratch or add one from Activities.</p>
-                    ) : (
-                      insights.map((i: any) => (
-                        <Button
-                          key={i.id}
-                          variant="outline"
-                          className="justify-start text-left h-auto py-3"
-                          onClick={() => handleStep1SelectInsight(i.id)}
-                        >
-                          <span className="line-clamp-2">{i.solution || i.coreProblem}</span>
-                        </Button>
-                      ))
-                    )}
-                  </div>
-                </div>
-                <Button variant="secondary" onClick={() => setFromScratch(true)}>
-                  Write from scratch
-                </Button>
-              </>
-            ) : (
-              <>
-                <div className="grid gap-3">
-                  <div>
-                    <Label>Problem / situation</Label>
-                    <Textarea
-                      value={scratchProblem}
-                      onChange={(e) => setScratchProblem(e.target.value)}
-                      placeholder="What was the situation or problem?"
-                      rows={2}
-                    />
-                  </div>
-                  <div>
-                    <Label>Solution / angle</Label>
-                    <Textarea
-                      value={scratchSolution}
-                      onChange={(e) => setScratchSolution(e.target.value)}
-                      placeholder="What’s the solution or main message?"
-                      rows={2}
-                    />
-                  </div>
-                  <div>
-                    <Label>Audience</Label>
-                    <Textarea
-                      value={scratchAudience}
-                      onChange={(e) => setScratchAudience(e.target.value)}
-                      placeholder="Who is this for?"
-                      rows={1}
-                    />
-                  </div>
-                  <div>
-                    <Label>Why it matters</Label>
-                    <Textarea
-                      value={scratchWhyMatters}
-                      onChange={(e) => setScratchWhyMatters(e.target.value)}
-                      placeholder="Why should they care?"
-                      rows={2}
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setFromScratch(false)}>
-                    Back
-                  </Button>
-                  <Button
-                    onClick={handleStep1FromScratch}
-                    disabled={createInsightMutation.isPending}
-                  >
-                    {createInsightMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Continue
-                  </Button>
-                </div>
-              </>
+          <CardContent className="space-y-2">
+            {insights.map((i: { id: string; solution?: string; coreProblem?: string }) => (
+              <Button
+                key={i.id}
+                variant="outline"
+                className="h-auto w-full justify-start py-3 text-left"
+                onClick={() => {
+                  setInsightId(i.id)
+                  setLegacyStep(2)
+                }}
+              >
+                <span className="line-clamp-2">{i.solution || i.coreProblem}</span>
+              </Button>
+            ))}
+            {insights.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No angles. Use Content Ideas instead.
+              </p>
             )}
           </CardContent>
         </Card>
       )}
 
-      {step === 2 && (
+      {legacyStep >= 2 && insightId && (
         <Card>
           <CardHeader>
-            <CardTitle>Platform & value</CardTitle>
-            <CardDescription>What type of post and what do you want to achieve?</CardDescription>
+            <CardTitle>Platform & generate</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label>Platform</Label>
-              <Select value={platform} onValueChange={setPlatform}>
-                <SelectTrigger className="w-full max-w-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SUPPORTED_PLATFORMS.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {PLATFORM_LABELS[p]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Platform</Label>
+                <Select value={platform} onValueChange={setPlatform}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SUPPORTED_PLATFORMS.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {PLATFORM_LABELS[p]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Format</Label>
+                <Select value={postType} onValueChange={setPostType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CONTENT_FORMATS.map((f) => (
+                      <SelectItem key={f} value={f}>
+                        {CONTENT_FORMAT_LABELS[f] || f}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div>
-              <Label>Type of post</Label>
-              <Select value={postType} onValueChange={setPostType}>
-                <SelectTrigger className="w-full max-w-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CONTENT_FORMATS.map((f) => (
-                    <SelectItem key={f} value={f}>
-                      {CONTENT_FORMAT_LABELS[f]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>What value do you want from this post?</Label>
-              <Select value={valueIntent} onValueChange={setValueIntent}>
-                <SelectTrigger className="w-full max-w-md">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CONTENT_INTENTS.map((i) => (
-                    <SelectItem key={i} value={i}>
-                      {CONTENT_INTENT_LABELS[i]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-muted-foreground">Extra context (optional)</Label>
-              <Textarea
-                value={valueReason}
-                onChange={(e) => setValueReason(e.target.value)}
-                placeholder="e.g. I want to show we ship fast, or get feedback on the approach"
-                rows={2}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(1)}>
-                Back
-              </Button>
-              <Button onClick={() => setStep(3)}>Next</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {step === 3 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Refinements & generate</CardTitle>
-            <CardDescription>Optional audience and persona; then generate.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label className="text-muted-foreground">Audience segment</Label>
-              <Select value={audienceSegment} onValueChange={setAudienceSegment}>
-                <SelectTrigger className="w-full max-w-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {AUDIENCE_SEGMENTS.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {AUDIENCE_SEGMENT_LABELS[s]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-muted-foreground">Persona</Label>
+            <div className="space-y-2">
+              <Label>Persona</Label>
               <Select value={persona} onValueChange={setPersona}>
-                <SelectTrigger className="w-full max-w-xs">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {PERSONAS.map((p) => (
                     <SelectItem key={p} value={p}>
-                      {PERSONA_LABELS[p]}
+                      {PERSONA_LABELS[p] || p}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label className="text-muted-foreground">Context (optional)</Label>
-              <Textarea
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
-                placeholder="Audience or situation context"
-                rows={2}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(2)}>
-                Back
-              </Button>
-              <Button
-                onClick={handleGenerate}
-                disabled={generateMutation.isPending}
-              >
-                {generateMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-2 h-4 w-4" />
-                )}
-                Generate draft
-              </Button>
-            </div>
+            <Button
+              onClick={() => generateMutation.mutate()}
+              disabled={generateMutation.isPending}
+            >
+              {generateMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Generate draft
+            </Button>
           </CardContent>
         </Card>
       )}

@@ -21,6 +21,17 @@ vi.mock("@/lib/ai/providers", () => {
   }
 })
 
+vi.mock("@/lib/usage/meter", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/usage/meter")>(
+    "@/lib/usage/meter"
+  )
+  return {
+    ...actual,
+    recordUsageAttempt: vi.fn().mockResolvedValue(undefined),
+    reserveAiRequestSlot: vi.fn().mockResolvedValue(undefined),
+  }
+})
+
 describe("orchestrator with mocked providers", () => {
   beforeEach(() => {
     generateText.mockReset()
@@ -142,9 +153,9 @@ describe("orchestrator with mocked providers", () => {
     ).rejects.toMatchObject({ code: "missing_credentials" })
   })
 
-  it("completeText delegates to provider adapter", async () => {
+  it("completeText meters via executeAi and returns provider text", async () => {
     generateText.mockResolvedValue({
-      text: "ok",
+      text: "Regenerated draft content that is long enough.",
       provider: "openai",
       model: "gpt-4o",
       latencyMs: 1,
@@ -154,9 +165,11 @@ describe("orchestrator with mocked providers", () => {
       user: "u",
       model: "gpt-4o",
       maxTokens: 100,
+      userId: "user_1",
+      task: "content.regenerate",
       provider: "openai",
     })
-    expect(text).toBe("ok")
+    expect(text).toContain("Regenerated draft")
   })
 
   it("rejects malformed structured output after repair attempt", async () => {

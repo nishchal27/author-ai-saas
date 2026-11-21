@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Package, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   Select,
   SelectContent,
@@ -10,9 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { Package, Plus, ChevronDown } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { clearBrandScopedQueries, queryKeys } from "@/lib/query-keys"
 
 interface Product {
   id: string
@@ -33,11 +32,14 @@ async function fetchProducts() {
   return res.json()
 }
 
-export function ProductSwitcher({ compact = false, onAddProduct }: ProductSwitcherProps) {
+export function ProductSwitcher({
+  compact = false,
+  onAddProduct,
+}: ProductSwitcherProps) {
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
-    queryKey: ["products"],
+    queryKey: queryKeys.products,
     queryFn: fetchProducts,
   })
 
@@ -48,90 +50,109 @@ export function ProductSwitcher({ compact = false, onAddProduct }: ProductSwitch
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ activeProductId: productId }),
       })
-      if (!res.ok) throw new Error("Failed to switch product")
-      return res.json()
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || "Failed to switch product")
+      }
+      return res.json() as Promise<{ activeProductId: string }>
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] })
-      // Refresh other data that depends on active product
-      queryClient.invalidateQueries({ queryKey: ["activities"] })
-      queryClient.invalidateQueries({ queryKey: ["insights"] })
-      queryClient.invalidateQueries({ queryKey: ["drafts"] })
+    onSuccess: (result) => {
+      clearBrandScopedQueries(queryClient)
+      queryClient.setQueryData(
+        queryKeys.products,
+        (old: { products?: Product[]; activeProductId?: string | null } | undefined) => {
+          if (!old) return old
+          return {
+            ...old,
+            activeProductId: result.activeProductId,
+          }
+        }
+      )
     },
   })
 
   const products: Product[] = data?.products || []
-  const activeProductId = data?.activeProductId
-  const activeProduct = products.find(p => p.id === activeProductId) || products[0]
+  const activeProductId = data?.activeProductId as string | null | undefined
+  const activeFromServer = activeProductId
+    ? products.find((p) => p.id === activeProductId)
+    : undefined
+  const activeProduct = activeFromServer || products[0]
+  const selectValue =
+    activeFromServer?.id ||
+    (activeProductId && products.some((p) => p.id === activeProductId)
+      ? activeProductId
+      : activeProduct?.id) ||
+    ""
 
   if (isLoading) {
-    return (
-      <div className="h-10 w-40 bg-muted animate-pulse rounded-md" />
-    )
+    return <div className="h-10 w-40 animate-pulse rounded-md bg-muted" />
   }
 
   if (products.length === 0) {
     return (
-      <Button 
-        variant="outline" 
-        size="sm" 
+      <Button
+        variant="outline"
+        size="sm"
         onClick={onAddProduct}
         className="text-muted-foreground"
       >
-        <Plus className="h-4 w-4 mr-2" />
-        Add Product
+        <Plus className="mr-2 h-4 w-4" />
+        Add brand
       </Button>
     )
   }
 
-  if (compact || products.length === 1) {
+  if (compact && products.length === 1) {
     return (
       <div className="flex items-center gap-2">
         <Package className="h-4 w-4 text-muted-foreground" />
         <span className="font-medium">{activeProduct?.name}</span>
-        {products.length > 1 && (
-          <Badge variant="secondary" className="text-xs">
-            +{products.length - 1}
-          </Badge>
-        )}
       </div>
     )
   }
 
   return (
     <Select
-      value={activeProduct?.id || ""}
+      value={selectValue}
       onValueChange={(value) => {
         if (value === "add-new") {
           onAddProduct?.()
-        } else {
+        } else if (value !== selectValue) {
           switchProduct.mutate(value)
         }
       }}
+      disabled={switchProduct.isPending}
     >
-      <SelectTrigger className="w-[200px] border-dashed">
-        <div className="flex items-center gap-2">
-          <Package className="h-4 w-4 text-muted-foreground" />
+      <SelectTrigger className="w-[min(100%,200px)] border-dashed">
+        <div className="flex min-w-0 items-center gap-2">
+          <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
           <SelectValue>
-            {activeProduct?.name || "Select product"}
+            <span className="truncate">
+              {activeProduct?.name || "Select brand"}
+            </span>
           </SelectValue>
+          {products.length > 1 && (
+            <Badge variant="secondary" className="ml-1 hidden text-xs sm:inline-flex">
+              {products.length}
+            </Badge>
+          )}
         </div>
       </SelectTrigger>
       <SelectContent>
         {products.map((product) => (
           <SelectItem key={product.id} value={product.id}>
-            <div className="flex items-center justify-between w-full">
+            <div className="flex w-full items-center justify-between">
               <span>{product.name}</span>
-              <span className="text-xs text-muted-foreground ml-2">
+              <span className="ml-2 text-xs text-muted-foreground">
                 {product.type}
               </span>
             </div>
           </SelectItem>
         ))}
-        <SelectItem value="add-new" className="border-t mt-1 pt-1">
+        <SelectItem value="add-new" className="mt-1 border-t pt-1">
           <div className="flex items-center gap-2 text-primary">
             <Plus className="h-4 w-4" />
-            Add new product
+            Add new brand
           </div>
         </SelectItem>
       </SelectContent>

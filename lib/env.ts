@@ -1,5 +1,6 @@
 /**
  * Safe environment helpers. Never log or return secret values.
+ * Authoritative list of names: see `.env.example`.
  */
 
 const REQUIRED_ALWAYS = [
@@ -9,6 +10,7 @@ const REQUIRED_ALWAYS = [
   "CLERK_SECRET_KEY",
 ] as const
 
+/** Enforced when NODE_ENV=production (ENCRYPTION_KEY min length 16). */
 const REQUIRED_PRODUCTION = ["ENCRYPTION_KEY", "CRON_SECRET"] as const
 
 export type EnvIssue = {

@@ -81,6 +81,30 @@ describe("BrandContextAssembler", () => {
     expect(ctx.approved.facts.some((f) => f.text.includes("Invented"))).toBe(false)
   })
 
+  it("does not trust proposed-only brandVoiceJson without approved summary/facts", () => {
+    const ctx = buildAssembledBrandContext({
+      product: {
+        ...baseProduct,
+        brandSummaryApproved: null,
+        brandFactsApproved: null,
+        brandProfileStatus: "proposed",
+        brandVoiceJson: JSON.stringify({ tone: "Unreviewed AI voice" }),
+      },
+      task: "content.generate",
+    })
+    expect(ctx.approved.voice).toBeUndefined()
+  })
+
+  it("parses proposed voice from facts payload without reading brandVoiceJson as proposed", () => {
+    const parsed = parseProposedFactsPayload(
+      JSON.stringify({
+        facts: [{ id: "1", text: "Handmade", source: "user" }],
+        voice: { tone: "Warm", personality: "grounded" },
+      })
+    )
+    expect(parsed.voice?.tone).toBe("Warm")
+  })
+
   it("enforces ownership by requiring caller-supplied owned product row", () => {
     // Assembler does not load by id alone — API must pass userId-scoped product.
     // Wrong-user product simply never reaches buildAssembledBrandContext.

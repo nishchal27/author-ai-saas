@@ -29,6 +29,9 @@ export interface ContentEngineContext {
   techStack: string | null
   brandVoice: string | undefined
   userTier: "standard" | "premium"
+  /** Required for metered AI generation */
+  userId: string
+  brandId?: string
 }
 
 export interface ContentEngineInput {
@@ -65,7 +68,18 @@ export async function runContentEngine(input: ContentEngineInput): Promise<Conte
     contextExtra,
   } = input
 
-  const { insight, product, productContext, strategyContext, founderBio, techStack, brandVoice, userTier } = context
+  const {
+    insight,
+    product,
+    productContext,
+    strategyContext,
+    founderBio,
+    techStack,
+    brandVoice,
+    userTier,
+    userId,
+    brandId,
+  } = context
 
   let themes: string[] | undefined
   if (insight.themes) {
@@ -121,6 +135,11 @@ export async function runContentEngine(input: ContentEngineInput): Promise<Conte
       toneDepth: decision.toneDepth,
       founderBio: founderBio ?? undefined,
       techStack: techStack ?? undefined,
+      metering: {
+        userId,
+        brandId,
+        task: "content.generate",
+      },
     }
   )
 

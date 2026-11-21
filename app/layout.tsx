@@ -9,23 +9,43 @@ import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/constants"
 
 const inter = Inter({ subsets: ["latin"] })
 
+const title = `${PRODUCT_NAME} — ${PRODUCT_TAGLINE}`
+const description =
+  "Teach Varabhi about your brand. Let it help you decide what to create and produce consistent marketing content for small businesses and solo founders."
+
 export const metadata: Metadata = {
-  title: `${PRODUCT_NAME} - ${PRODUCT_TAGLINE}`,
-  description:
-    "Teach Varabhi about your brand. Get clear guidance on what to create and platform-specific drafts that stay on-brand — without a marketing team.",
+  title: {
+    default: title,
+    template: `%s · ${PRODUCT_NAME}`,
+  },
+  description,
+  applicationName: PRODUCT_NAME,
   keywords: [
+    "Varabhi",
     "brand marketing",
-    "AI content",
-    "marketing workspace",
+    "AI marketing workspace",
+    "content ideas",
     "brand voice",
-    "content drafts",
     "small business marketing",
+    "content planner",
   ],
   openGraph: {
-    title: `${PRODUCT_NAME} - ${PRODUCT_TAGLINE}`,
-    description:
-      "Teach Varabhi about your brand. Decide what to create and produce consistent, on-brand marketing content.",
+    title,
+    description,
     type: "website",
+    siteName: PRODUCT_NAME,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  icons: {
+    icon: "/favicon.svg",
   },
 }
 

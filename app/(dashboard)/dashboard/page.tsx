@@ -1,22 +1,22 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import { useQuery } from "@tanstack/react-query"
+import {
+  ArrowRight,
+  AlertCircle,
+  CheckCircle2,
+  Package,
+  Sparkles,
+} from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Package, ArrowRight, Loader2, Sparkles, User, Cpu } from "lucide-react"
-import Link from "next/link"
-import { JobStatusStrip } from "@/components/dashboard/job-status-strip"
-import { BuildInPublicModal } from "@/components/dashboard/build-in-public-modal"
-import { useSearchParams, useRouter } from "next/navigation"
 import { DashboardSkeleton } from "@/components/loading/dashboard-skeleton"
 import { ProductOnboarding } from "@/components/onboarding/product-onboarding"
-import { useToast } from "@/hooks/use-toast"
-
-// ============================================
-// DATA FETCHING
-// ============================================
+import { queryKeys } from "@/lib/query-keys"
+import { useSearchParams } from "next/navigation"
 
 async function fetchProducts() {
   const res = await fetch("/api/products")
@@ -24,384 +24,373 @@ async function fetchProducts() {
   return res.json()
 }
 
-async function fetchSettings() {
-  const res = await fetch("/api/settings")
-  if (!res.ok) throw new Error("Failed to fetch settings")
-  return res.json()
-}
-
-async function fetchGuideNext() {
-  const res = await fetch("/api/guide/next")
+async function fetchGuide(productId: string) {
+  const res = await fetch(`/api/guide/next?productId=${productId}`)
   if (!res.ok) throw new Error("Failed to fetch next action")
   return res.json()
 }
 
-async function fetchActivity(id: string) {
-  const res = await fetch(`/api/activities/${id}`)
-  if (!res.ok) throw new Error("Failed to fetch activity")
+async function fetchBrand(productId: string) {
+  const res = await fetch(`/api/products/${productId}/brand`)
+  if (!res.ok) throw new Error("Failed to fetch brand")
   return res.json()
 }
 
-// ============================================
-// HELPER COMPONENTS
-// ============================================
-
-function NoProductState({ onAddProduct }: { onAddProduct: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-        <Package className="h-8 w-8 text-primary" />
-      </div>
-      <h2 className="text-2xl font-bold mb-2">Welcome to Varabhi</h2>
-      <p className="text-muted-foreground max-w-md mb-6">
-        Tell us about your product and we'll create a personalized marketing strategy —
-        which platforms to use, what content to create, and what to skip.
-      </p>
-      <Button size="lg" onClick={onAddProduct}>
-        Add your product
-        <ArrowRight className="ml-2 h-4 w-4" />
-      </Button>
-    </div>
-  )
+async function fetchPillars(productId: string) {
+  const res = await fetch(`/api/products/${productId}/pillars`)
+  if (!res.ok) throw new Error("Failed to fetch pillars")
+  return res.json()
 }
 
-function NextCard({
-  step,
-  reason,
-  cta,
-  href,
-  stepLabel,
-}: {
-  step: string
-  reason: string
-  cta: string
-  href: string
-  stepLabel: string
-}) {
-  return (
-    <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-      <CardHeader>
-        <CardTitle className="text-lg">Next: {stepLabel}</CardTitle>
-        <CardDescription>{reason}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button asChild>
-          <Link href={href}>{cta}</Link>
-        </Button>
-      </CardContent>
-    </Card>
-  )
+async function fetchIdeas(productId: string) {
+  const res = await fetch(`/api/products/${productId}/ideas`)
+  if (!res.ok) throw new Error("Failed to fetch ideas")
+  return res.json()
 }
 
-function stepToLabel(step: string): string {
-  switch (step) {
-    case "add_product":
-      return "Add your product"
-    case "view_strategy":
-      return "See your strategy"
-    case "get_angle":
-      return "Get the angle"
-    case "create_post":
-      return "Create post"
-    case "review_draft":
-      return "Review your draft"
-    case "share_story":
-      return "Share a story"
+async function fetchPlan(productId: string) {
+  const res = await fetch(`/api/products/${productId}/plan`)
+  if (!res.ok) throw new Error("Failed to fetch plan")
+  return res.json()
+}
+
+async function fetchDrafts() {
+  const res = await fetch("/api/content/drafts?scope=active")
+  if (!res.ok) throw new Error("Failed to fetch drafts")
+  return res.json()
+}
+
+function statusBadge(status?: string) {
+  switch (status) {
+    case "approved":
+      return <Badge className="bg-emerald-600 hover:bg-emerald-600">Approved</Badge>
+    case "proposed":
+      return <Badge variant="secondary">Awaiting approval</Badge>
     default:
-      return step.replace(/_/g, " ")
+      return <Badge variant="outline">Incomplete</Badge>
   }
 }
 
-// ============================================
-// MAIN COMPONENT
-// ============================================
-
-export default function DashboardPage() {
-  const [showOnboarding, setShowOnboarding] = useState(false)
-  const [showBuildInPublic, setShowBuildInPublic] = useState(false)
+export default function OverviewPage() {
   const searchParams = useSearchParams()
-  const router = useRouter()
-  const queryClient = useQueryClient()
-  const { toast } = useToast()
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
-  const action = searchParams.get("action")
-  const activityId = searchParams.get("activityId")
+  useEffect(() => {
+    if (searchParams.get("addBrand") === "1") setShowOnboarding(true)
+  }, [searchParams])
 
-  const { data: productsData, isLoading: productsLoading } = useQuery({
-    queryKey: ["products"],
+  const {
+    data: productsData,
+    isLoading: productsLoading,
+    isError: productsError,
+  } = useQuery({
+    queryKey: queryKeys.products,
     queryFn: fetchProducts,
   })
 
-  const { data: settingsData } = useQuery({
-    queryKey: ["settings"],
-    queryFn: fetchSettings,
-    enabled: !!productsData?.products?.length,
-  })
-
-  const { data: guideData, isLoading: guideLoading } = useQuery({
-    queryKey: ["guide-next"],
-    queryFn: fetchGuideNext,
-    enabled: !!productsData?.products?.length && !action,
-  })
-
-  const { data: activityData, isLoading: activityLoading } = useQuery({
-    queryKey: ["activity", activityId!],
-    queryFn: () => fetchActivity(activityId!),
-    enabled: action === "extract" && !!activityId,
-  })
-
-  const extractMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/insights/extract", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activityId }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || "Failed to extract angle")
-      }
-      return res.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["guide-next"] })
-      queryClient.invalidateQueries({ queryKey: ["activities"] })
-      queryClient.invalidateQueries({ queryKey: ["insights"] })
-      toast({
-        title: "Angle ready",
-        description: "You can now create a post from this angle.",
-        variant: "success",
-      })
-      router.push("/dashboard")
-    },
-    onError: (e: Error) => {
-      toast({
-        title: "Error",
-        description: e.message,
-        variant: "destructive",
-      })
-    },
-  })
-
-  const isLoading =
-    productsLoading ||
-    (!!productsData?.products?.length && !action && guideLoading) ||
-    (action === "extract" && activityLoading)
   const products = productsData?.products || []
-  const activeProductId = productsData?.activeProductId
-  const activeProduct = products.find((p: any) => p.id === activeProductId) || products[0]
-  const next = guideData
-  const activity = activityData?.activity
+  const activeProductId =
+    productsData?.activeProductId || products[0]?.id || null
+  const activeProduct = products.find(
+    (p: { id: string }) => p.id === activeProductId
+  )
 
-  // Redirect "Create post" to Content create (content creation only in Content area)
-  useEffect(() => {
-    if (action === "post" && searchParams.get("insightId")) {
-      router.replace(`/dashboard/content/create?insightId=${searchParams.get("insightId")}`)
+  const enabled = Boolean(activeProductId)
+
+  const { data: guide, isLoading: guideLoading } = useQuery({
+    queryKey: queryKeys.guide(activeProductId),
+    queryFn: () => fetchGuide(activeProductId!),
+    enabled,
+  })
+
+  const { data: brand, isLoading: brandLoading } = useQuery({
+    queryKey: queryKeys.brand(activeProductId || "none"),
+    queryFn: () => fetchBrand(activeProductId!),
+    enabled,
+  })
+
+  const { data: pillarsData } = useQuery({
+    queryKey: queryKeys.pillars(activeProductId || "none"),
+    queryFn: () => fetchPillars(activeProductId!),
+    enabled,
+  })
+
+  const { data: ideasData } = useQuery({
+    queryKey: queryKeys.ideas(activeProductId || "none"),
+    queryFn: () => fetchIdeas(activeProductId!),
+    enabled,
+  })
+
+  const { data: planData } = useQuery({
+    queryKey: queryKeys.plan(activeProductId || "none"),
+    queryFn: () => fetchPlan(activeProductId!),
+    enabled,
+  })
+
+  const { data: draftsData } = useQuery({
+    queryKey: queryKeys.drafts("active"),
+    queryFn: fetchDrafts,
+    enabled,
+  })
+
+  const attention = useMemo(() => {
+    const items: { id: string; label: string; href: string }[] = []
+    if (brand?.status === "proposed") {
+      items.push({
+        id: "brand-approve",
+        label: "Brand summary awaiting your approval",
+        href: "/dashboard/brand",
+      })
     }
-  }, [action, searchParams, router])
-
-  useEffect(() => {
-    if (!productsLoading && products.length === 0) {
-      const hasSeenOnboarding = localStorage.getItem("onboarding_completed")
-      if (!hasSeenOnboarding) {
-        setShowOnboarding(true)
-      }
+    const proposedPillars = (pillarsData?.pillars || []).filter(
+      (p: { approvalStatus: string; isActive: boolean }) =>
+        p.isActive && p.approvalStatus === "proposed"
+    )
+    if (proposedPillars.length > 0) {
+      items.push({
+        id: "pillars",
+        label: `${proposedPillars.length} content pillar${proposedPillars.length === 1 ? "" : "s"} awaiting review`,
+        href: "/dashboard/strategy",
+      })
     }
-  }, [productsLoading, products.length])
+    const ideasWithoutDraft = (ideasData?.ideas || []).filter(
+      (i: { status: string; drafts?: unknown[] }) =>
+        (i.status === "saved" || i.status === "proposed") &&
+        (!i.drafts || i.drafts.length === 0)
+    )
+    if (ideasWithoutDraft.length > 0) {
+      items.push({
+        id: "ideas",
+        label: `${ideasWithoutDraft.length} saved idea${ideasWithoutDraft.length === 1 ? "" : "s"} without drafts`,
+        href: "/dashboard/content",
+      })
+    }
+    const drafts = (draftsData?.drafts || []) as {
+      status: string
+      productId?: string
+    }[]
+    const draftList = drafts.filter(
+      (d) =>
+        d.status === "draft" &&
+        (!activeProductId || d.productId === activeProductId)
+    )
+    if (draftList.length > 0) {
+      items.push({
+        id: "drafts",
+        label: `${draftList.length} draft${draftList.length === 1 ? "" : "s"} needing review`,
+        href: "/dashboard/content",
+      })
+    }
+    return items
+  }, [brand, pillarsData, ideasData, draftsData, activeProductId])
 
-  if (isLoading && products.length > 0 && !action) {
-    return <DashboardSkeleton />
+  const planItems = planData?.plan?.items || []
+  const planCompleted = planItems.filter(
+    (i: { status: string }) => i.status === "completed"
+  ).length
+
+  if (productsLoading) return <DashboardSkeleton />
+
+  if (productsError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Couldn’t load your brands</CardTitle>
+          <CardDescription>
+            This is a load failure, not an empty workspace. Refresh or try again.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    )
   }
 
   if (products.length === 0) {
     return (
-      <>
-        <NoProductState onAddProduct={() => setShowOnboarding(true)} />
-        <ProductOnboarding open={showOnboarding} onOpenChange={setShowOnboarding} />
-      </>
+      <div className="mx-auto flex max-w-lg flex-col items-center py-16 text-center">
+        <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+          <Package className="h-8 w-8 text-primary" />
+        </div>
+        <h1 className="text-2xl font-semibold tracking-tight">Welcome to Varabhi</h1>
+        <p className="mt-2 text-muted-foreground">
+          Add your first brand to get started. Next you’ll open Brand Studio to teach
+          Varabhi who you are — then pillars, ideas, drafts, and your weekly plan.
+        </p>
+        <Button size="lg" className="mt-6" onClick={() => setShowOnboarding(true)}>
+          Add your brand
+          <ArrowRight className="ml-2 h-4 w-4" />
+        </Button>
+        <ProductOnboarding
+          open={showOnboarding}
+          onOpenChange={setShowOnboarding}
+        />
+      </div>
     )
   }
 
-  const strategySummary = activeProduct?.strategy?.summary ?? null
+  const missing = brand?.context?.missingFields || []
+  const loadingBrand = brandLoading || guideLoading
 
-  // Flow: Get the angle (action=extract)
-  if (action === "extract" && activityId) {
-    if (activityLoading || !activity) {
-      return (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      )
-    }
-    return (
-      <>
-        <div className="space-y-8">
-          <div>
-            <h1 className="text-3xl font-bold">{activeProduct?.name}</h1>
-            {strategySummary && (
-              <p className="text-muted-foreground mt-2 max-w-2xl">{strategySummary}</p>
-            )}
-          </div>
-          <Card>
-            <CardHeader>
-              <CardTitle>What you shared</CardTitle>
-              <CardDescription>{activity.title}</CardDescription>
-            </CardHeader>
-            {activity.description && (
-              <CardContent>
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {activity.description}
-                </p>
-              </CardContent>
-            )}
-            <CardContent>
-              <Button
-                onClick={() => extractMutation.mutate()}
-                disabled={extractMutation.isPending}
-              >
-                {extractMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-2 h-4 w-4" />
-                )}
-                Get the angle
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-        <ProductOnboarding open={showOnboarding} onOpenChange={setShowOnboarding} />
-      </>
-    )
-  }
-
-  const founderBio = settingsData?.user?.founderBio ?? null
-
-  // Default: organized dashboard with products, founder, jobs, next
   return (
-    <>
-      <div className="space-y-8">
-        <div className="flex items-start justify-between">
+    <div className="mx-auto max-w-4xl space-y-8">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          Overview
+        </h1>
+        <p className="mt-1 text-muted-foreground">
+          Your next useful step for{" "}
+          <span className="font-medium text-foreground">
+            {activeProduct?.name || "your brand"}
+          </span>
+          .
+        </p>
+      </div>
+
+      {/* Brand readiness */}
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-3xl font-bold">{activeProduct?.name}</h1>
-              {products.length > 1 && (
-                <Badge variant="outline" className="text-xs">
-                  {products.length} products
-                </Badge>
-              )}
-            </div>
-            {strategySummary && (
-              <p className="text-muted-foreground max-w-2xl">{strategySummary}</p>
-            )}
-          </div>
-          <Button variant="outline" size="sm" onClick={() => setShowOnboarding(true)}>
-            Add product
-          </Button>
-        </div>
-
-        {/* Background jobs */}
-        <Card className="border-border/80 bg-muted/30">
-          <CardHeader className="py-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-accent" aria-hidden />
-              Background
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <JobStatusStrip />
-          </CardContent>
-        </Card>
-
-        {/* Products */}
-        <div>
-          <h2 className="text-lg font-semibold mb-3">Products</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {products.map((p: any) => (
-              <Card key={p.id} className="overflow-hidden border-primary/10 bg-gradient-to-br from-primary/5 to-transparent hover:from-primary/10 transition-colors">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Package className="h-4 w-4 text-primary" />
-                    {p.name}
-                  </CardTitle>
-                  <CardDescription className="line-clamp-2">
-                    {p.description || p.audience ? [p.description, p.audience].filter(Boolean).join(" · ") : "No description"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="ghost" size="sm" asChild className="text-primary hover:text-primary hover:bg-primary/10">
-                      <Link href={`/dashboard/strategy?productId=${p.id}`}>Strategy</Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        {/* Founder & build in public */}
-        <Card className="border-accent/20 bg-accent/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <User className="h-4 w-4 text-accent" />
-              Founder & build in public
-            </CardTitle>
+            <CardTitle className="text-lg">Brand readiness</CardTitle>
             <CardDescription>
-              Used to personalize content (build in public, lessons, tech stack).
+              Approved brand context grounds every idea and draft.
             </CardDescription>
+          </div>
+          {statusBadge(brand?.status)}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {loadingBrand ? (
+            <p className="text-sm text-muted-foreground">Loading brand status…</p>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-base font-medium">{brand?.name || activeProduct?.name}</p>
+                {brand?.context?.hasApprovedContext ? (
+                  <span className="inline-flex items-center gap-1 text-sm text-emerald-700">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Trusted context ready
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-sm text-amber-700">
+                    <AlertCircle className="h-4 w-4" />
+                    Not yet approved for generation
+                  </span>
+                )}
+              </div>
+              {missing.length > 0 && (
+                <div>
+                  <p className="mb-2 text-sm font-medium">Missing information</p>
+                  <ul className="list-inside list-disc text-sm text-muted-foreground">
+                    {missing.map((field: string) => (
+                      <li key={field}>{field}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <Button asChild variant={brand?.status === "approved" ? "outline" : "default"}>
+                <Link href="/dashboard/brand">
+                  {brand?.status === "approved"
+                    ? "Review Brand Studio"
+                    : brand?.status === "proposed"
+                      ? "Review and approve"
+                      : "Complete Brand Studio"}
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Next action */}
+      <Card className="border-primary/25">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Next action
+          </CardTitle>
+          <CardDescription>
+            {guide?.reason || "We’ll suggest one clear step once your brand loads."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {guide?.cta && guide?.href ? (
+            <Button asChild size="lg">
+              <Link href={guide.href}>
+                {guide.cta}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          ) : (
+            <Button asChild variant="outline">
+              <Link href="/dashboard/brand">Open Brand Studio</Link>
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* This week */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">This week</CardTitle>
+            <CardDescription>Simple plan progress for the selected brand.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {founderBio ? (
-              <p className="text-sm text-muted-foreground line-clamp-2">{founderBio}</p>
+            {planItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nothing planned yet. Add ideas or drafts when you’re ready.
+              </p>
             ) : (
-              <p className="text-sm text-muted-foreground">No founder bio or tech stacks set.</p>
+              <p className="text-sm">
+                <span className="text-xl font-semibold">{planCompleted}</span>
+                <span className="text-muted-foreground">
+                  {" "}
+                  of {planItems.length} completed
+                </span>
+              </p>
             )}
-            {products.some((p: any) => p.techStackJson) && (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {products.map((p: any) => {
-                  if (!p.techStackJson) return null
-                  try {
-                    const arr = JSON.parse(p.techStackJson) as { name: string }[]
-                    return (
-                      <div key={p.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Cpu className="h-3.5 w-3.5" />
-                        <span>{p.name}: {arr.map((t) => t.name).join(", ")}</span>
-                      </div>
-                    )
-                  } catch {
-                    return null
-                  }
-                })}
-              </div>
-            )}
-            <Button variant="outline" size="sm" onClick={() => setShowBuildInPublic(true)}>
-              {founderBio || products.some((p: any) => p.techStackJson) ? "Edit build in public profile" : "Add founder & tech stack"}
+            <Button asChild variant="outline" size="sm">
+              <Link href="/dashboard/plan">
+                Open Content Planner
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
             </Button>
           </CardContent>
         </Card>
 
-        {next && (
-          <NextCard
-            step={next.step}
-            reason={next.reason}
-            cta={next.cta}
-            href={next.href}
-            stepLabel={stepToLabel(next.step)}
-          />
-        )}
-
-        {next?.step === "review_draft" && next.draftTitle && (
-          <p className="text-sm text-muted-foreground">
-            1 draft waiting —{" "}
-            <Link href={next.href} className="text-primary underline underline-offset-2">
-              {next.draftTitle}
-            </Link>
-          </p>
-        )}
+        {/* Needs attention */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Needs attention</CardTitle>
+            <CardDescription>Only items that unblock useful work.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {attention.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                You’re clear — no urgent brand or content blockers.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {attention.map((item) => (
+                  <li key={item.id}>
+                    <Link
+                      href={item.href}
+                      className="flex items-start gap-2 text-sm text-foreground hover:underline"
+                    >
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      <ProductOnboarding open={showOnboarding} onOpenChange={setShowOnboarding} />
-      <BuildInPublicModal open={showBuildInPublic} onOpenChange={setShowBuildInPublic} />
-    </>
+      <ProductOnboarding
+        open={showOnboarding}
+        onOpenChange={setShowOnboarding}
+      />
+    </div>
   )
 }

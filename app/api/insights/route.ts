@@ -2,7 +2,14 @@ import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
 import { ensureUserForClerkId } from "@/lib/users"
 import { parseBody, insightCreateSchema } from "@/lib/validation"
+import { apiError } from "@/lib/api-error"
 import { NextResponse } from "next/server"
+
+function parseListLimit(raw: string | null, fallback = 20, max = 100): number {
+  const n = parseInt(raw || String(fallback), 10)
+  if (!Number.isFinite(n) || n <= 0) return fallback
+  return Math.min(n, max)
+}
 
 export async function GET(req: Request) {
   try {
@@ -15,8 +22,21 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const status = searchParams.get("status")
-    const scope = searchParams.get("scope") || "active" // "active" | "all"
-    const limit = parseInt(searchParams.get("limit") || "20")
+    const scope = (searchParams.get("scope") || "active").toLowerCase()
+    if (scope !== "active" && scope !== "all") {
+      return NextResponse.json(
+        {
+          error: "Validation failed",
+          details: "scope must be 'active' or 'all'",
+        },
+        { status: 400 }
+      )
+    }
+    const limit = parseListLimit(searchParams.get("limit"))
+
+    if (scope === "active" && !user.activeProductId) {
+      return NextResponse.json({ insights: [], scope: "active" })
+    }
 
     const insights = await db.insight.findMany({
       where: {
@@ -35,13 +55,12 @@ export async function GET(req: Request) {
       },
     })
 
-    return NextResponse.json({ insights })
+    return NextResponse.json({ insights, scope })
   } catch (error) {
-    console.error("Error fetching insights:", error)
-    return NextResponse.json(
-      { error: "Failed to fetch insights" },
-      { status: 500 }
-    )
+    return apiError(error, {
+      context: "insights GET",
+      publicMessage: "Failed to fetch insights",
+    })
   }
 }
 
@@ -57,7 +76,8 @@ export async function POST(req: Request) {
     const raw = await req.json().catch(() => null)
     const parsed = parseBody(raw, insightCreateSchema)
     if ("error" in parsed) return parsed.error
-    const { coreProblem, solution, audience, whyMatters, impact, productId } = parsed.data
+    const { coreProblem, solution, audience, whyMatters, impact, productId } =
+      parsed.data
 
     const targetProductId = productId ?? user.activeProductId
     if (targetProductId) {
@@ -65,7 +85,7 @@ export async function POST(req: Request) {
         where: { id: targetProductId, userId: user.id },
       })
       if (!product) {
-        return NextResponse.json({ error: "Product not found" }, { status: 404 })
+        return NextResponse.json({ error: "Brand not found" }, { status: 404 })
       }
     }
 
@@ -84,10 +104,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ insight })
   } catch (error) {
-    console.error("Error creating insight:", error)
-    return NextResponse.json(
-      { error: "Failed to create insight" },
-      { status: 500 }
-    )
+    return apiError(error, {
+      context: "insights POST",
+      publicMessage: "Failed to create insight",
+    })
   }
 }

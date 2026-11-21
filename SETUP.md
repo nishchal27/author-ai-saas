@@ -1,4 +1,7 @@
-# Varabhi - Setup Guide
+# Varabhi — Setup Guide
+
+Authoritative environment template: [`.env.example`](./.env.example).  
+Product/architecture docs: [`docs/README.md`](./docs/README.md).
 
 ## Quick Start
 
@@ -10,92 +13,122 @@ npm install
 
 ### 2. Environment Variables
 
-Create a `.env` file in the root directory:
-
-```env
-# Database
-DATABASE_URL="postgresql://user:password@localhost:5432/varabhi"
-
-# Clerk Authentication
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
-
-# AI APIs
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-
-# Inngest (for workflow automation)
-# Create account at https://inngest.com
-# Functions auto-register when deployed
-# No additional config needed for basic use
-
-# Cron Secret (for legacy cron endpoint)
-CRON_SECRET=your-secret-key-here
-
-# Integration token encryption (optional but recommended for production)
-# Use a random 32+ character string. If unset, tokens are stored in plaintext.
-# ENCRYPTION_KEY=your-32-char-or-longer-secret
-
-# Next.js
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+```bash
+cp .env.example .env
 ```
+
+Edit `.env` with real values. **Never commit `.env`.**
+
+#### Required always
+
+| Variable | Purpose |
+|----------|---------|
+| `DATABASE_URL` | Prisma runtime Postgres URL (pooled OK) |
+| `DIRECT_URL` | Migrations / introspection URL (`schema.prisma` `directUrl`) |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk browser key |
+| `CLERK_SECRET_KEY` | Clerk server key |
+| `NEXT_PUBLIC_APP_URL` | Public app URL (local or production) |
+
+#### Required in production (`NODE_ENV=production`)
+
+| Variable | Purpose |
+|----------|---------|
+| `ENCRYPTION_KEY` | Encrypt integration tokens (16+ characters). Fail-closed without it. |
+| `CRON_SECRET` | Non-empty Bearer secret for `/api/cron/*` and production `/api/health/db` |
+
+Empty `CRON_SECRET` is rejected — the app will **not** accept `Authorization: Bearer undefined`.
+
+#### Optional — AI providers
+
+At least one is required **only when using AI features** (brand summarize, AI ideas, AI drafts, strategy refinement):
+
+- `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY`
+- `OPENROUTER_API_KEY` (+ optional `OPENROUTER_APP_TITLE`)
+
+Optional model overrides: `AI_MODEL_*` (see `lib/ai/MODELS.md`).
+
+The app boots and supports manual brand/pillar/idea/planner workflows without AI keys.
+
+#### Optional — Inngest (scheduled publishing / background jobs)
+
+| Variable | Purpose |
+|----------|---------|
+| `INNGEST_SIGNING_KEY` | Verifies Inngest → app requests (`/api/inngest`) |
+| `INNGEST_EVENT_KEY` | Allows the app to send events to Inngest |
+
+`/api/inngest` is excluded from Clerk session requirements so Inngest Cloud can reach it. **Signing verification remains enabled** via the Inngest SDK — do not treat this as an open unsigned webhook.
+
+#### Development-only
+
+| Variable | Purpose |
+|----------|---------|
+| `ALLOW_PLAINTEXT_TOKENS=1` | Allow integration tokens without `ENCRYPTION_KEY` in **non-production only** |
+| `POPULATE_CLERK_ID` / `NEXT_PUBLIC_SEED_CLERK_ID` | Seed script user id |
+| `POPULATE_CLEAN=1` | Wipe seedable rows before populate |
 
 ### 3. Database Setup
 
 #### Option A: Local PostgreSQL
 
-1. Install PostgreSQL if not already installed
-2. Create a database:
 ```sql
 CREATE DATABASE varabhi;
 ```
-3. Update `DATABASE_URL` in `.env`
 
-#### Option B: Use a Cloud Database (Recommended for Production)
+Set both `DATABASE_URL` and `DIRECT_URL` (they may be identical locally).
 
-- **Vercel Postgres**: Free tier available
-- **Supabase**: Free tier available
-- **Neon**: Free tier available
-- **Railway**: Free tier available
+#### Option B: Cloud Postgres (Supabase, Neon, etc.)
+
+- `DATABASE_URL` → pooled connection (often port `6543`, with `pgbouncer=true` when required)
+- `DIRECT_URL` → session/direct connection (often port `5432`) for migrations
 
 ### 4. Initialize Database
 
+#### Development (preferred)
+
 ```bash
-# Generate Prisma Client
 npx prisma generate
-
-# Push schema to database
-npx prisma db push
-
-# (Optional) Open Prisma Studio to view data
-npx prisma studio
+npx prisma migrate dev
+# or: npm run db:migrate
 ```
 
-### 5. Set Up Clerk Authentication
+`prisma migrate dev` applies pending migrations and keeps the migration history in sync.
 
-1. Go to [clerk.com](https://clerk.com) and create an account
-2. Create a new application
-3. Copy your publishable key and secret key
-4. Add them to your `.env` file
-5. Configure Clerk:
-   - Set sign-in/sign-up URLs: `http://localhost:3000/sign-in` and `http://localhost:3000/sign-up`
-   - Set after sign-in URL: `http://localhost:3000/dashboard`
+#### Development (schema prototyping only)
 
-### 6. Get API Keys
+```bash
+npm run db:push
+```
 
-#### Anthropic (Claude API)
-1. Go to [console.anthropic.com](https://console.anthropic.com)
-2. Create an account or sign in
-3. Navigate to API Keys
-4. Create a new API key
-5. Add to `.env` as `ANTHROPIC_API_KEY`
+`db push` does **not** replace migrations for shared or production databases.
 
-#### OpenAI (DALL·E)
-1. Go to [platform.openai.com](https://platform.openai.com)
-2. Sign in or create an account
-3. Navigate to API Keys
-4. Create a new API key
-5. Add to `.env` as `OPENAI_API_KEY`
+#### Production / staging (required)
+
+```bash
+npx prisma migrate deploy
+# or: npm run db:migrate:deploy
+```
+
+**Do not use `prisma db push` in production.**
+
+Then verify:
+
+```bash
+npx prisma migrate status
+npx prisma validate
+npm run db:verify
+```
+
+### 5. Clerk Authentication
+
+1. Create an application at [clerk.com](https://clerk.com)
+2. Copy publishable + secret keys into `.env`
+3. Set sign-in / sign-up URLs to your app (e.g. `http://localhost:3000/sign-in`)
+4. After sign-in URL: `/dashboard`
+
+### 6. AI API keys (optional until you need AI)
+
+Configure one or more providers listed in `.env.example`. Phase 5 AI quality/provider setup remains separate from this foundation.
 
 ### 7. Run Development Server
 
@@ -103,120 +136,99 @@ npx prisma studio
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000).
+
+### Health checks
+
+| Endpoint | Purpose | Auth |
+|----------|---------|------|
+| `GET /api/health` | Liveness (no DB) | None |
+| `GET /api/health/db` | Readiness (`SELECT 1`) | Dev: open · Prod: `Authorization: Bearer <CRON_SECRET>` |
+| `GET /api/cron/publish` | Manual Inngest trigger (legacy) | `Authorization: Bearer <CRON_SECRET>` |
 
 ## First Steps After Setup
 
-1. **Sign Up**: Create an account using Clerk
-2. **Set Brand Voice**: Go to Settings and describe your brand voice
-3. **Create Activity**: Add your first activity manually
-4. **Extract Insight**: Click "Extract Insight" on an activity
-5. **Generate Content**: Generate content from insights
-6. **Review & Approve**: Review and edit content drafts
+1. Sign up with Clerk
+2. Add your brand (onboarding)
+3. Open Brand Studio and complete the profile
+4. Add pillars / ideas manually (no AI required)
+5. Use Content Planner for the week
 
-## GitHub Integration (Optional)
+## GitHub / social integrations (optional)
 
-1. Go to GitHub Settings → Developer settings → Personal access tokens
-2. Generate a new token with `repo` scope
-3. Go to Settings in Varabhi
-4. Enter your token and repository (format: `owner/repo`)
-5. Click "Connect GitHub"
-6. Use the GitHub sync feature to automatically track commits and PRs
+Requires `ENCRYPTION_KEY` (or `ALLOW_PLAINTEXT_TOKENS=1` in development only).  
+Tokens are stored encrypted in production. Publishing remains out of MVP marketing promise for V2 beta.
 
 ## Production Deployment
 
-### Recommended Platforms
+### Recommended platforms
 
-1. **Vercel** (Recommended)
-   - Automatic deployments from Git
-   - Built-in environment variables
-   - Free PostgreSQL addon available
-   - Easy Clerk integration
+Vercel, Railway, or Render with a managed Postgres provider.
 
-2. **Railway**
-   - Simple deployment
-   - Built-in PostgreSQL
-   - Environment variable management
+### Checklist (before / during deploy)
 
-3. **Render**
-   - Free tier available
-   - PostgreSQL addon
-   - Easy setup
+1. Set all **required always** + **required production** variables from `.env.example`
+2. Set AI / Inngest keys only for features you enable
+3. Run **`npx prisma migrate deploy`** against production `DIRECT_URL` / migration connection
+4. Deploy the Next.js build (`npm run build` → `npm start`, or your host’s build command)
+5. Confirm `GET /api/health` returns `{ ok: true }`
+6. Confirm `GET /api/health/db` with Bearer cron secret returns `{ ok: true }`
+7. Sync / verify the Inngest app points at `https://<your-domain>/api/inngest`
 
-### Deployment Steps (Vercel)
+This guide does **not** claim the app is production-ready merely because env vars exist — complete Phase 5.1 journey fixes and a verified production build before a broad beta.
 
-1. Push your code to GitHub
-2. Import project in Vercel
-3. Add environment variables
-4. Deploy!
+### Environment variables for production (summary)
 
-### Environment Variables for Production
+Required: `DATABASE_URL`, `DIRECT_URL`, Clerk keys, `NEXT_PUBLIC_APP_URL`, `ENCRYPTION_KEY`, `CRON_SECRET`.  
+Feature-gated: AI keys, `INNGEST_SIGNING_KEY`, `INNGEST_EVENT_KEY`.
 
-Make sure to set all environment variables in your hosting platform:
-- `DATABASE_URL`
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-- `CLERK_SECRET_KEY`
-- `ANTHROPIC_API_KEY`
-- `OPENAI_API_KEY`
-- `NEXT_PUBLIC_APP_URL` (your production URL)
-- `ENCRYPTION_KEY` (optional; recommended for production to encrypt integration tokens)
+## Verify production database
 
-## Verify production database (Neon / Postgres)
+If you see `PrismaClientInitializationError` / “Tenant or user not found”:
 
-If you see **`PrismaClientInitializationError: FATAL: Tenant or user not found`** in production (e.g. on login or `/dashboard`), the app cannot reach the database. Fix it as follows:
-
-1. **Check your database provider (e.g. Neon)**  
-   - Ensure the project and branch in your connection string still exist.  
-   - If you rotated the password or recreated the project, the old `DATABASE_URL` is invalid.
-
-2. **Get a valid connection string**  
-   - In Neon: Project → Connection details → copy the connection string (use the one that matches your branch).  
-   - Ensure the username and database exist for that project.
-
-3. **Update production env**  
-   - In Vercel: Project → Settings → Environment Variables → set `DATABASE_URL` to the new value for Production (and Preview if needed).  
-   - Redeploy so all runtimes use the new URL.
-
-4. **Verify before or after**  
-   - Run locally with the production URL to confirm it works:
-   - **PowerShell:** `$env:DATABASE_URL="postgresql://..."; npm run db:verify`
-   - **Bash:** `DATABASE_URL='postgresql://...' npm run db:verify`
-   - If `db:verify` fails, the URL is wrong or the database is unreachable; fix the URL and try again.
+1. Confirm the provider project/branch still exists
+2. Refresh `DATABASE_URL` and `DIRECT_URL`
+3. Redeploy
+4. Locally: `npm run db:verify` with the production URL
 
 ## Troubleshooting
 
-### Database Connection Issues
+### Database
 
-- Verify `DATABASE_URL` is correct
-- Check if PostgreSQL is running (local)
-- Verify database exists
-- Check firewall settings (cloud databases)
-- For **Neon**: use the steps in "Verify production database" above if you see "Tenant or user not found"
+- Check both `DATABASE_URL` and `DIRECT_URL`
+- Prefer `migrate deploy` over `db push` on shared DBs
+- Confirm network / IP allowlists for cloud Postgres
 
-### Clerk Authentication Issues
+### Clerk
 
-- Verify keys are correct
-- Check redirect URLs in Clerk dashboard
-- Ensure `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` starts with `pk_`
-- Ensure `CLERK_SECRET_KEY` starts with `sk_`
+- Publishable key starts with `pk_`, secret with `sk_`
+- Redirect URLs match the deployed host
 
-### API Key Issues
+### Cron / health unauthorized
 
-- Verify API keys are correct
-- Check API key permissions
-- Verify billing/credits are set up
-- Check rate limits
+- Ensure `CRON_SECRET` is non-empty
+- Send header: `Authorization: Bearer <exact CRON_SECRET>`
 
-### Build Errors
+### Inngest
 
-- Run `npm install` again
-- Delete `node_modules` and `.next` folders, then reinstall
-- Check Node.js version (should be 18+)
-- Verify all environment variables are set
+- App URL must include `/api/inngest`
+- Signing key must match the Inngest dashboard environment
+- Unsigned or wrong-key requests are rejected by the Inngest serve handler
 
-## Support
+### Build
 
-For issues or questions, check:
-- README.md for architecture details
-- Code comments for implementation details
-- API route files for endpoint documentation
+- Node 18+
+- `npm install`, clear `.next` if needed
+- Ensure required env vars are present for production builds that import `lib/db`
+
+## npm scripts (database)
+
+| Script | Use |
+|--------|-----|
+| `npm run db:generate` | `prisma generate` |
+| `npm run db:migrate` | `prisma migrate dev` (local) |
+| `npm run db:migrate:deploy` | `prisma migrate deploy` (prod/staging) |
+| `npm run db:validate` | `prisma validate` |
+| `npm run db:push` | Schema push (local prototyping only) |
+| `npm run db:verify` | Connectivity check script |
+| `npm run db:studio` | Prisma Studio |

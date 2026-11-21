@@ -23,6 +23,7 @@ export function parseProposedFactsPayload(raw: string | null | undefined): {
   userSuppliedFacts?: BrandFact[]
   promptVersion?: string
   schemaVersion?: string
+  voice?: BrandVoice
 } {
   if (!raw) return { facts: [] }
   try {
@@ -37,7 +38,16 @@ export function parseProposedFactsPayload(raw: string | null | undefined): {
         userSuppliedFacts?: BrandFact[]
         promptVersion?: string
         schemaVersion?: string
+        voice?: BrandVoice
       }
+      const proposalVoice =
+        wrap.voice ||
+        (wrap.proposal &&
+        typeof wrap.proposal === "object" &&
+        wrap.proposal !== null &&
+        "brandVoice" in wrap.proposal
+          ? ((wrap.proposal as { brandVoice?: BrandVoice }).brandVoice)
+          : undefined)
       return {
         facts: wrap.facts.filter((f) => f?.text),
         proposal: wrap.proposal,
@@ -46,6 +56,7 @@ export function parseProposedFactsPayload(raw: string | null | undefined): {
           : undefined,
         promptVersion: wrap.promptVersion,
         schemaVersion: wrap.schemaVersion,
+        voice: proposalVoice,
       }
     }
   } catch {
@@ -193,14 +204,14 @@ export function buildAssembledBrandContext(opts: {
   const approvedSummary = product.brandSummaryApproved || undefined
   const productVoice = parseVoice(product.brandVoiceJson)
   const userVoice = parseVoice(user?.brandVoice || undefined)
-  // Product voice only trusted after approval (summary or facts present)
+  const profileStatus = (product.brandProfileStatus || "incomplete") as BrandProfileStatus
+  const hasApprovedContext = Boolean(approvedSummary || approvedFacts.length > 0)
+  // brandVoiceJson is written only on explicit approve (proposed voice lives in
+  // brandFactsProposed). Trust it when approved summary/facts exist.
   const approvedVoice =
     approvedSummary || approvedFacts.length
       ? productVoice || userVoice
       : undefined
-
-  const profileStatus = (product.brandProfileStatus || "incomplete") as BrandProfileStatus
-  const hasApprovedContext = Boolean(approvedSummary || approvedFacts.length > 0)
 
   let strategy: AssembledBrandContext["strategy"] = null
   if (product.strategy) {
